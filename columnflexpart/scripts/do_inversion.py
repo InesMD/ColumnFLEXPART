@@ -106,20 +106,8 @@ def plot_averaging_kernel(Inversion, alpha, class_num, week_num,savepath):
 #plot_averaging_kernel(Inversion, 1.1116017136941747e-06, 27, 6)
 
 
-##### Versuch Gesamtemissionen nach inversion zu berechnen 
-def calc_concentrations():
-    flux_mean, flux_err = Inversion.get_flux()
-    err = Inversion.get_land_ocean_error(1/10)
-    predictions = Inversion.fit(alpha = 0.004317500056754969, xerr = err) 
-    print(predictions)
-    fp, conc, conc_err = Inversion.get_footprint_and_measurement('xco2')
-    #print(result[0])
-    result_spatial = Inversion.map_on_grid(flux_mean[:,flux_mean['week']==week])
-    result_spatial.plot(x = 'longitude', y = 'latitude')
-    plt.savefig('/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/Images/Setup6/footprint_coarsened.png')
-
 #for week in range(48,53):
-    plot_prior_spatially(Inversion, week)
+ #   plot_prior_spatially(Inversion, week)
 #
 
 
@@ -154,6 +142,8 @@ def plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion, week_min, we
     flux_mean, flux_err = Inversion.get_flux()
     err = Inversion.get_land_ocean_error(1/10)
     predictions = Inversion.fit(alpha = alpha, xerr = err) # was macht alpha? 
+    #print(predictions)
+    #total_spatial_result = xr.Dataset()
     for week in range(week_min,week_max+1): 
         #print(predictions)
         plt.figure()
@@ -166,12 +156,12 @@ def plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion, week_min, we
             plt.title('Week '+str(week))
             plt.savefig(savepath+'Diff_to_prior_week_'+str(week)+'_alpha_xerr.png')
         else: 
-
             spatial_result = (spatial_result*12*10**(6))
             spatial_result.plot(x = 'longitude', y = 'latitude', cmap = 'seismic',vmin = vminv,cbar_kwargs = {'label' : r'flux [$\mu$gC m$^{-2}$ s$^{-1}$]'})
             plt.title('Week '+str(week))
             plt.savefig(savepath+'Spatial_results_week_'+str(week)+'_alpha'+str(alpha)+'_xerr.png')
-
+            spatial_result.to_netcdf(path =savepath+'spatial_results_week_'+str(week)+'_'+str(alpha)+'.pkl')
+    #total_spatial_result.to_netcdf(path =savepath+'spatial_results_week_'+str(week_min)+'_'+str(week_max)+'.pkl')
     #print(predictions)
     #get_total(Inversion)
 
@@ -191,6 +181,23 @@ def do_everything(savepath, Inversion, mask_datapath_and_name, week_min, week_ma
         plot_averaging_kernel(Inversion, l, class_num, week_num,savepath)
 
 
+##### Versuch Gesamtemissionen nach inversion zu berechnen 
+def calc_concentrations(Inversion, alpha, week, savepath):
+    flux_mean, flux_err = Inversion.get_flux()
+    err = Inversion.get_land_ocean_error(1/10)
+    predictions = Inversion.fit(alpha = alpha, xerr = err) 
+   #print(predictions)
+    fp, conc, conc_err = Inversion.get_footprint_and_measurement('xco2')
+    print(fp)
+    #print(result[0])
+    #result_spatial = Inversion.map_on_grid(flux_mean[:,flux_mean['week']==week])
+    #result_spatial.plot(x = 'longitude', y = 'latitude')
+    spatial_fp = Inversion.map_on_grid(fp[:,fp['measurement']==1,fp['week']==week])
+    print(spatial_fp)
+    print(spatial_fp['prior_date'])
+    spatial_fp.plot(x='longitude', y='latitude')
+    plt.savefig(savepath+'footprint_coarsened.png')
+
 
 savepath = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/Images/Setup_version7/'
 
@@ -203,8 +210,8 @@ Inversion = InversionBioclass(
     boundary=[110.0, 155.0, -45.0, -10.0],
     data_outside_month=False
 )
-
-
+#l1,l2 = find_two_optimal_lambdas(Inversion,[1e-8,1], 1e-9)
+#calc_concentrations(Inversion,l2,49, savepath)
 do_everything(savepath, Inversion,"/home/b/b382105/ColumnFLEXPART/resources/OekomaskAU_Flexpart_version7_Tasmania",
               1,1,6)
 do_everything(savepath, Inversion,"/home/b/b382105/ColumnFLEXPART/resources/OekomaskAU_Flexpart_version7_Tasmania",
