@@ -16,6 +16,8 @@ from pathlib import Path
 import bayesinverse
 from columnflexpart.classes.inversion import InversionBioclass
 from columnflexpart.utils.utils import optimal_lambda
+from matplotlib.colors import LogNorm 
+from matplotlib.dates import DateFormatter
 
 
 
@@ -73,17 +75,17 @@ def plot_l_curve(Inversion,savepath, alpha):
 
 
 #plot_l_curve(Inversion)
-def plot_averaging_kernel(Inversion, alpha, class_num, week_num,savepath):
+def plot_averaging_kernel(Inversion, alpha, class_num, week_num,savepath, plot_spatially, weekly = False):
     flux_mean, flux_err = Inversion.get_flux()
     err = Inversion.get_land_ocean_error(1/10)
     predictions = Inversion.fit(alpha = alpha, xerr = err) 
+    print(predictions)
     #result = Inversion.compute_l_curve(alpha = [0.004317500056754969], xerr = err)
     ak = Inversion.get_averaging_kernel()
-  
-    ak_sum = np.zeros((week_num*class_num,class_num))    
+    plt.rcParams.update({'font.size':13})
+    ak_sum = np.zeros((week_num*class_num,class_num))   
     for i in range(0,class_num):#ecosystem number 
         list_indices = list(i+class_num*np.arange(0,week_num))
-        #print(list_indices)
         for idx in list_indices: 
             ak_sum[:,i] += ak[:,idx]#ak[:,i]+ak[:,i+7]+ak[:,i+2*7]+ak[:,i+3*7]+ak[:,i+4*7]+ak[:,i+5*7]
        
@@ -93,14 +95,55 @@ def plot_averaging_kernel(Inversion, alpha, class_num, week_num,savepath):
         for idx in list_indices:
             ak_final[i] += ak_sum[idx]#(ak_sum[i+7*2]+ak_sum[i+7*3]+ak_sum[i+7*4]+ak_sum[i+7*5])/4
         ak_final[i] = ak_final[i]/len(list_indices)
-    #ak_sum[i]+ak_sum[i+7]+
-    #ak_sum = ak.sum(axis =1)#ak[0:7,:].dot(np.ones(7))
-    #print(ak_final)
+    
+    if plot_spatially ==  True and weekly == False: 
+        print(ak_final.diagonal())
+        print(Inversion.time_coord)
+        ak_xr = xr.DataArray(data = ak_final.diagonal()[1:], dims = ['bioclass'], coords=dict(bioclass= list(np.arange(1,class_num))))#, week = [1,48,49,50,51,52])))
+        print(ak_xr)
+        ak_spatial = Inversion.map_on_grid_without_time_coord(ak_xr, class_num)
+        print(ak_spatial)
+        ax = plt.axes(projection=ccrs.PlateCarree())  
+        orig_map=plt.cm.get_cmap('gist_heat')
+        reversed_map = orig_map.reversed()
+        ak_spatial.plot(norm = LogNorm(vmin = 1e-3), x='longitude', y='latitude',ax = ax,cmap = reversed_map)
+        ax.coastlines()
+        plt.title('Averaging kernel for 2019/12')
+        plt.savefig(savepath+'ak_spatial_gist_heat_reversed'+str(alpha)+'log_1e-3_no_ocean.png')
     #sk_shape # Seite 47
-    plt.figure()
-    plt.imshow(ak_final, vmax = 1, vmin = 0)
-    plt.colorbar()
-    plt.savefig(savepath+'ak_final_2d_'+str(alpha)+'.png')
+    elif plot_spatially == True and weekly == True: 
+        week_list = [1,48,49,50,51,52]
+        for week in range(0,week_num): 
+            ak_xr = xr.DataArray(data = ak_sum[week*class_num:(week+1)*class_num].diagonal()[1:], dims = ['bioclass'], coords=dict(bioclass= list(np.arange(1,class_num))))
+            ak_spatial = Inversion.map_on_grid_without_time_coord(ak_xr, class_num)
+            fig = plt.figure()
+            ax = plt.axes(projection=ccrs.PlateCarree())  
+            orig_map=plt.cm.get_cmap('gist_heat')
+            reversed_map = orig_map.reversed()
+            ak_spatial.plot(x='longitude', y='latitude',ax = ax, vmax = 0.2, vmin = 0, cmap = reversed_map)
+            ax.coastlines()
+            plt.title('Averaging kernel for 2019 week '+str(week_list[week]))
+            fig.savefig(savepath+'ak_spatial_gist_heat_reversed'+str(alpha)+'_week'+str(week_list[week])+'_no_ocean.png')
+        #ak_xr = xr.DataArray(data = ak_sum[class_num:2*class_num].diagonal()[1:], dims = ['bioclass', 'week'], coords=dict(bioclass= list(np.arange(1,class_num)), week = 1))
+        #ak_xr = xr.DataArray(data = ak_sum[2*class_num:3*class_num].diagonal()[1:], dims = ['bioclass', 'week'], coords=dict(bioclass= list(np.arange(1,class_num)), week = 1))
+        #ak_xr = xr.DataArray(data = ak_sum[0:class_num].diagonal()[1:], dims = ['bioclass', 'week'], coords=dict(bioclass= list(np.arange(1,class_num)), week = 1))
+
+    #sensitive = np.where(ak_final>0.005)
+    #print(sensitive[0])
+    #diagonal_sensitive = []
+    #for x,y in zip(sensitive[0], sensitive[1]):
+    #    if x==y:
+    #        diagonal_sensitive.append(x)
+    #print(diagonal_sensitive)
+    #with open(savepath+"sensitive_regions_0.005_alpha"+str(alpha)+".txt", "w") as output:
+    #    output.write(str(diagonal_sensitive))
+    else: 
+   #plotting 
+        plt.figure()
+        plt.imshow(ak_final,vmax = 0.05,  vmin = 0) #vmax = 1,
+        plt.colorbar()
+        plt.savefig(savepath+'ak_final_2d_max0.05_'+str(alpha)+'.png')
+    
 
 
 #plot_averaging_kernel(Inversion, 1.1116017136941747e-06, 27, 6)
@@ -144,6 +187,7 @@ def plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion, week_min, we
     predictions = Inversion.fit(alpha = alpha, xerr = err) # was macht alpha? 
     #print(predictions)
     #total_spatial_result = xr.Dataset()
+    plt.rcParams.update({'font.size':13})   
     for week in range(week_min,week_max+1): 
         #print(predictions)
         plt.figure()
@@ -154,13 +198,13 @@ def plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion, week_min, we
             spatial_result = (spatial_result*12*10**(6))-spatial_flux
             spatial_result.plot(x = 'longitude', y = 'latitude', cmap = 'seismic',vmin = vminv,cbar_kwargs = {'label' : r'flux [$\mu$gC m$^{-2}$ s$^{-1}$]'})
             plt.title('Week '+str(week))
-            plt.savefig(savepath+'Diff_to_prior_week_'+str(week)+'_alpha_xerr.png')
+            plt.savefig(savepath+'Diff_to_prior_week_'+str(week)+'_alpha'+str(alpha)+'_xerr.png')
         else: 
             spatial_result = (spatial_result*12*10**(6))
             spatial_result.plot(x = 'longitude', y = 'latitude', cmap = 'seismic',vmin = vminv,cbar_kwargs = {'label' : r'flux [$\mu$gC m$^{-2}$ s$^{-1}$]'})
             plt.title('Week '+str(week))
             plt.savefig(savepath+'Spatial_results_week_'+str(week)+'_alpha'+str(alpha)+'_xerr.png')
-            spatial_result.to_netcdf(path =savepath+'spatial_results_week_'+str(week)+'_'+str(alpha)+'.pkl')
+            spatial_result.to_netcdf(path =savepath+'spatial_results_week_'+str(week)+'_'+str(alpha)+'.nc')
     #total_spatial_result.to_netcdf(path =savepath+'spatial_results_week_'+str(week_min)+'_'+str(week_max)+'.pkl')
     #print(predictions)
     #get_total(Inversion)
@@ -169,8 +213,11 @@ def plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion, week_min, we
 
 def do_everything(savepath, Inversion, mask_datapath_and_name, week_min, week_max, week_num):
     class_num = plot_input_mask(savepath,mask_datapath_and_name)
-    l1, l2 = find_two_optimal_lambdas(Inversion,[1e-8,1], 1e-9)
-    for l in [l1, l2]: 
+    #l1, l2 = find_two_optimal_lambdas(Inversion,[3e-5,1], 1e-9)# 1e-8
+    l1 =  1.271463009778368e-05
+    l3 = 0.0009414995908741231
+    l2 = 0.0006228666734243309
+    for l in [l1, l2, l3]: 
         #plot_l_curve(Inversion,savepath, l)
         plot_prior_spatially(Inversion,week_min, week_max, savepath)
         print('Plotting spatial results')
@@ -180,10 +227,95 @@ def do_everything(savepath, Inversion, mask_datapath_and_name, week_min, week_ma
         print('Plotting averaging kernels')
         plot_averaging_kernel(Inversion, l, class_num, week_num,savepath)
 
+import time
+def isSorted(inList):
+    length = len(inList)
+    for i in range(length-1):
+        if inList[i][1] != '' and inList[i+1][1] != '':
+            date1 = time.strptime(inList[i][1], '%m-%d %H:%M:%S')
+            date2 = time.strptime(inList[i+1][1], '%m-%d %H:%M:%S')
+            if date1 > date2:
+                return False
+    return True
+
+def sortList(inList):
+    length = len(inList)
+    for i in range(length):
+        if inList[i][1] == '':
+            continue
+        for j in range(length-1,0,-1):
+            if inList[j][1] == '':
+                continue
+            if i != j:
+                date1 = time.strptime(inList[i][1], '%m-%d %H:%M:%S')
+                date2 = time.strptime(inList[j][1], '%m-%d %H:%M:%S')
+                if date2 < date1:
+                    currentElem = inList[j]
+                    inList.remove(inList[j]) 
+                    inList.insert(i,currentElem)
+        if isSorted(inList):
+            break
+    return inList
 
 ##### Versuch Gesamtemissionen nach inversion zu berechnen 
 def calc_concentrations(Inversion, alpha, week, savepath):
-    flux_mean, flux_err = Inversion.get_flux()
+    
+    err = Inversion.get_land_ocean_error(1/10)
+    predictions = Inversion.fit(alpha = alpha, xerr = err) 
+    concentration_results = Inversion.footprints_flat.values*Inversion.predictions_flat.values*10**6
+    conc_sum = concentration_results.sum(axis = 1)
+
+    datapath_predictions = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/'
+    ds = pd.read_pickle(datapath_predictions+'predictions.pkl')
+    print(ds.keys())
+    conc_tot = conc_sum + ds['background_inter']
+
+    plt.rcParams.update({'font.size':14})   
+    plt.rcParams.update({'errorbar.capsize': 5})
+    fig, (ax, ax2) = plt.subplots(nrows = 2, sharex = True, gridspec_kw={'height_ratios': [4, 1]},figsize = (14,10))
+    df = pd.DataFrame(data =conc_tot.values, columns = ['conc'])
+    df.insert(loc = 1, column = 'time', value = ds['time'])
+    df.insert(loc = 1, column = 'measurement_uncertainty', value = ds['measurement_uncertainty'])
+    df.insert(loc = 1, column = 'xco2_measurement', value = ds['xco2_measurement'])
+
+    ds.plot(x='time', y='background_inter',color = 'k', marker='.', markersize = 7,linestyle='None', ax=ax, label= 'Model background')
+    ds.plot(x='time', y='xco2_measurement',marker='.',ax=ax, markersize = 7,linestyle='None',color = 'dimgrey',label= 'Measurement')#yerr = 'measurement_uncertainty', 
+    #plt.fill_between(df['time'],df['xco2_measurement']-df['measurement_uncertainty'],
+    #                 df['xco2_measurement']+df['measurement_uncertainty'],color = 'lightgrey' )
+    df.plot(x = 'time', y = 'conc',marker = '.', ax = ax, markersize = 7,linestyle='None',color = 'red',label = 'Model posterior')
+    ds.plot(x='time', y='xco2_inter', marker='.', ax = ax,markersize = 7,linestyle='None',color = 'salmon', label='Model prior')
+    ax.legend()
+    ax.set_xticks([datetime(year =2019, month = 12, day = 1),datetime(year =2019, month = 12, day = 5), datetime(year =2019, month = 12, day = 10), datetime(year =2019, month = 12, day = 15),
+                datetime(year =2019, month = 12, day = 20), datetime(year =2019, month = 12, day = 25), datetime(year =2019, month = 12, day = 30), 
+                datetime(year = 2020, month = 1, day = 4)], 
+                rotation=45)
+    ax.set_xlim(left =  datetime(year = 2019, month = 11, day=30), right = datetime(year = 2020, month = 1, day=8))
+    ax.grid(axis = 'both')
+    ax.set_ylabel('concentration [ppm]')
+    ax.errorbar(x= datetime(year =2020, month = 1, day = 7), y = 407.5, yerr = ds['measurement_uncertainty'].mean(), marker = '.',markersize = 7,linestyle='None',color = 'dimgrey')
+    plt.xlabel('date')
+
+    myFmt = DateFormatter("%Y-%m-%d")
+    ax.xaxis.set_major_formatter(myFmt)
+
+    ## Rotate date labels automatically
+    fig.autofmt_xdate()
+    #ax.legend()
+    #ax.grid(axis = 'both')
+    #ax.set_ylabel('concentration [ppm]')
+    
+
+    ds_mean = pd.read_pickle('/work/bb1170/RUN/b382105/Flexpart/TCCON/preparation/one_hour_runs/TCCON_mean_measurements_sept_to_march.pkl')
+    ds_mean = ds_mean[(ds_mean['datetime']>=datetime(year=2019, month =12, day=1))&(ds_mean['datetime']<= datetime(year=2020, month =1, day=9))]
+    ax2.bar(ds_mean['datetime'], ds_mean['number_of_measurements'], width=0.1, color = 'dimgrey')
+    ax2.set_ylabel('# measurements')
+    ax2.grid(axis='x')
+    plt.subplots_adjust(hspace=0)
+    plt.savefig(savepath+'concentrations_results_err_on_bottom_measnum_equal_spacing.png')
+
+    return
+
+    flux_mean, flux_err = Inversion.__xarray_dataarray_variable__
     err = Inversion.get_land_ocean_error(1/10)
     predictions = Inversion.fit(alpha = alpha, xerr = err) 
    #print(predictions)
@@ -199,21 +331,34 @@ def calc_concentrations(Inversion, alpha, week, savepath):
     plt.savefig(savepath+'footprint_coarsened.png')
 
 
-savepath = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/Images/Setup_version7/'
+savepath = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/Images/Setup_gridded/'
 
 Inversion = InversionBioclass(
     result_path="/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/predictions.pkl",
     month="2019-12", 
     flux_path="/work/bb1170/RUN/b382105/Data/CarbonTracker2022/Flux/CT2022.flux1x1.",
-    bioclass_path= "/home/b/b382105/ColumnFLEXPART/resources/OekomaskAU_Flexpart_version7_Tasmania",
+    bioclass_path= "/home/b/b382105/ColumnFLEXPART/resources/OekomaskAU_Flexpart_version8_all1x1",
     time_coarse = None,
     boundary=[110.0, 155.0, -45.0, -10.0],
     data_outside_month=False
 )
+
+
+
 #l1,l2 = find_two_optimal_lambdas(Inversion,[1e-8,1], 1e-9)
 #calc_concentrations(Inversion,l2,49, savepath)
-do_everything(savepath, Inversion,"/home/b/b382105/ColumnFLEXPART/resources/OekomaskAU_Flexpart_version7_Tasmania",
-              1,1,6)
-do_everything(savepath, Inversion,"/home/b/b382105/ColumnFLEXPART/resources/OekomaskAU_Flexpart_version7_Tasmania",
-              48,52,6)
+#plot_averaging_kernel(Inversion,  0.0006228666734243309, 699, 6,savepath, True)
+calc_concentrations(Inversion,  0.0006228666734243309,52, savepath)
+
+
+
+#plot_input_mask(savepath,"/home/b/b382105/ColumnFLEXPART/resources/OekomaskAU_Flexpart_version8_all1x1", selection= regions_sensitive)
+#do_everything(savepath, Inversion,"/home/b/b382105/ColumnFLEXPART/resources/OekomaskAU_Flexpart_version8_all1x1",
+#              1,1,6)
+#do_everything(savepath, Inversion,"/home/b/b382105/ColumnFLEXPART/resources/OekomaskAU_Flexpart_version8_all1x1",
+#              48,52,6)
 #class_num = plot_input_mask(savepath,"/home/b/b382105/ColumnFLEXPART/resources/OekomaskAU_Flexpart_version7_Tasmania")#,selection = [5,6,7,8,16,20,31])
+# for gridded : Optimal lambda 1: 1.271463009778368e-05
+#Optimal lambda 2: 1.2802671525246307e-05
+#Optimal lambda 3: 0.0006228666734243309
+#Optimal lambda 4: 0.0009414995908741231
