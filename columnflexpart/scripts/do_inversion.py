@@ -66,12 +66,15 @@ def plot_prior_spatially(Inversion,week_min, week_max, savepath):
 def plot_l_curve(Inversion,savepath, alpha):
     #[1e-8,3e-8, 1e-7, 4.9e-7, 1e-6,2e-6,5e-6, 1e-5,2e-5, 3e-5,5e-5,1e-4, 2e-4, 3e-4, 5e-4, 1e-3,2e-3,4.32e-3, 1e-2,1.8e-2,3e-2,5e-2,7e-2, 1e-1,1.8e-1,3e-1,5e-1, 1]
     # [1e-8,2.5e-8,5e-8,1e-7,2.5e-7,5.92e-7,1e-6,2.5e-6,5e-6,1e-5,2.5e-5,5e-5,1e-4,2.5e-4,5e-4,1e-3,2.5e-3,4.32e-3,1e-2,2.5e-2,5e-2,1e-1,1.5e-1,5e-1,1]
-    inv_result = Inversion.compute_l_curve(alpha =[1e-8,3e-8, 1e-7, 4.92e-7, 1.11e-6,2e-6,5e-6, 1e-5,2e-5, 3e-5,5e-5,1e-4, 2e-4, 3e-4, 5e-4, 1.41e-3,2e-3,4.32e-3, 1e-2,1.8e-2,3e-2,5e-2,7e-2, 1e-1,1.8e-1,3e-1,5e-1, 1])
+    print('compute l curve')
+    inv_result = Inversion.compute_l_curve(alpha =[1e-13, 1e-12,1e-11,1e-10,1e-9,1e-8,3e-8, 1e-7, 4.92e-7, 1.11e-6,2e-6,5e-6, 1e-5,2e-5, 3e-5,5e-5,1e-4, 2e-4, 3e-4, 6.2e-4, 1.41e-3,2e-3,4.32e-3, 1e-2,1.8e-2,3e-2,5e-2,7e-2, 1e-1,1.8e-1,3e-1,5e-1, 1])
+    print('Plotting')
     plt.plot(inv_result["loss_regularization"],inv_result["loss_forward_model"])
-    fig, ax = Inversion.plot_l_curve(mark_ind = 15, mark_kwargs= dict(color = 'firebrick',label = r'$\lambda = 1.41 \cdot 10^{-3}$'))
+    fig, ax = Inversion.plot_l_curve(mark_ind = 19, mark_kwargs= dict(color = 'firebrick',label = r'$\lambda = 6.2 \cdot 10^{-4}$'))
     plt.grid(axis = 'y', color = 'grey', linestyle = '--' )
     plt.legend()
-    plt.savefig(savepath+'l_curve_'+str(alpha)+'.png')
+    print('saving')
+    plt.savefig(savepath+'l_curve_'+str(alpha)+'_extended.png')
 
 
 #plot_l_curve(Inversion)
@@ -344,11 +347,11 @@ Inversion = InversionBioclass(
 )
 
 
-
+plot_l_curve(Inversion, savepath, 6.2e-4)
 #l1,l2 = find_two_optimal_lambdas(Inversion,[1e-8,1], 1e-9)
 #calc_concentrations(Inversion,l2,49, savepath)
 #plot_averaging_kernel(Inversion,  0.0006228666734243309, 699, 6,savepath, True)
-calc_concentrations(Inversion,  0.0006228666734243309,52, savepath)
+#calc_concentrations(Inversion,  0.0006228666734243309,52, savepath)
 
 
 
