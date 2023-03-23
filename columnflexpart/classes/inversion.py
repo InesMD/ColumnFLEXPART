@@ -188,7 +188,7 @@ class Inversion():
             coords = dict(measurement = measurement_id)
         )
         # merging and conversion from s m^3/kg to s m^2/mol
-        footprints = xr.concat(footprints, dim = "measurement")/100 * 0.044
+        footprints = xr.concat(footprints, dim = "measurement")/100 * 0.029
         # extra time coarsening for consistent coordinates 
         if not self.time_coarse is None:
             footprints = footprints.coarsen({self.time_coord:self.time_coarse}, boundary=self.coarsen_boundary).sum()
@@ -460,7 +460,12 @@ class Inversion():
         sc = ax.scatter(
             self.l_curve_result["loss_forward_model"],
             self.l_curve_result["loss_regularization"],
+            s=45,
+            marker ='.', color = 'black',
             **kwargs)
+        ax.plot(self.l_curve_result["loss_forward_model"],
+            self.l_curve_result["loss_regularization"],
+            color = 'black', linestyle = '--', **kwargs)
         if cbar:
             fig.colorbar(sc, ax=ax, **cbar_kwargs)
         if mark_ind:
@@ -468,9 +473,9 @@ class Inversion():
 
             mark_default_kwargs = dict(
             s=50,
-            label=f"$lambda = {mark_alpha:.4}$",
-            alpha = 0.5,
-            color="grey"
+            label=f"$\lambda = {mark_alpha:.4}$",
+            #alpha = 0.5,
+            color="r"
             )
             mark_default_kwargs.update(mark_kwargs)
             x_val = self.l_curve_result["loss_forward_model"][mark_ind]
@@ -485,6 +490,7 @@ class Inversion():
         ax.set_title("L-curve")
         ax.set_xscale("log")
         ax.set_yscale("log")
+        
         return fig, ax
 
     def plot_correlation_concentration(
@@ -880,7 +886,7 @@ class InversionBioclass(Inversion):
         flux_err = np.sqrt(flux_err/flux_counts)/np.sqrt(flux_counts)
         return flux_err
 
-    def map_on_grid(self, xarr: xr.DataArray) -> xr.DataArray:
+    def map_on_grid(self, xarr: xr.DataArray) -> xr.DataArray:#[self.time_coord]
         mapped_xarr = xr.DataArray(
             data = np.zeros(
                 (
@@ -896,6 +902,32 @@ class InversionBioclass(Inversion):
             }
         )
         for bioclass in xarr.bioclass:
+            mapped_xarr = mapped_xarr + (self.bioclass_mask == bioclass) * xarr.where(xarr.bioclass == bioclass, drop=True)
+            mapped_xarr = mapped_xarr.squeeze(drop=True)
+        return mapped_xarr
+    
+    def map_on_grid_without_time_coord(self, xarr: xr.DataArray, class_num) -> xr.DataArray:#[self.time_coord]
+        '''
+        used for plotting ak
+        '''
+        mapped_xarr = xr.DataArray(
+            data = np.zeros(
+                (
+                    len(xarr),
+                    len(self.bioclass_mask.longitude),
+                    len(self.bioclass_mask.latitude)
+                )
+            ),
+            coords = {
+                #self.time_coord: xarr, 
+                "bioclass": xarr.bioclass,
+                "longitude": self.bioclass_mask.longitude, 
+                "latitude": self.bioclass_mask.latitude
+            }#[self.time_coord]
+        )
+        for bioclass in xarr.bioclass:
+            mask = self.bioclass_mask == bioclass
+            print(xarr.where(xarr.bioclass == bioclass, drop=True))
             mapped_xarr = mapped_xarr + (self.bioclass_mask == bioclass) * xarr.where(xarr.bioclass == bioclass, drop=True)
             mapped_xarr = mapped_xarr.squeeze(drop=True)
         return mapped_xarr
@@ -919,6 +951,7 @@ def get_total(inv):
     world = gpd.read_file(gpd.datasets.get_path('naturalearth_lowres'))[["name", "geometry"]].to_crs({'init': 'epsg:3857'})
     area = world[world.name=="Australia"].area
     flux_sum = area*flux_sum
+    print(flux_sum)
     
 
 if __name__ == "__main__":
@@ -934,12 +967,38 @@ if __name__ == "__main__":
     #     data_outside_month=True
     # )
 
+    #Inversion = InversionBioclass(
+    #    result_path="/work/bb1170/RUN/b381737/data/FLEXPART/ACOS_australia/2009/11_unpacked/results_new.pkl",
+    #    month="2009-11", 
+    #    flux_path="/work/bb1170/static/CT2019/Flux3hour_1x1/CT2019B.flux1x1.",
+    #    bioclass_path= "/home/b/b381737/python_scripts/master/open_data/data/OekomaskAU_Flexpart_2",
+    #    time_coarse = None,
+    #    boundary=[110.0, 155.0, -45.0, -10.0],
+    #    data_outside_month=True
+    #)
+
     Inversion = InversionBioclass(
-        result_path="/work/bb1170/RUN/b381737/data/FLEXPART/ACOS_australia/2009/11_unpacked/results_new.pkl",
-        month="2009-11", 
-        flux_path="/work/bb1170/static/CT2019/Flux3hour_1x1/CT2019B.flux1x1.",
-        bioclass_path= "/home/b/b381737/python_scripts/master/open_data/data/OekomaskAU_Flexpart_2",
+        result_path="/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/predictions.pkl",
+        month="2019-12", 
+        flux_path="/work/bb1170/RUN/b382105/Data/CarbonTracker2022/Flux/CT2022.flux1x1.",
+        bioclass_path= "/home/b/b382105/ColumnFLEXPART/resources/bioclass_mask1.nc",
         time_coarse = None,
         boundary=[110.0, 155.0, -45.0, -10.0],
-        data_outside_month=True
+        data_outside_month=False
     )
+
+  
+    inv_result = Inversion.compute_l_curve(alpha = [1e-8, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1])
+    #plt.plot(inv_result["loss_regularization"],inv_result["loss_forward_model"])
+    fig, ax = Inversion.plot_l_curve()
+    plt.savefig('/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/l_curve.png')
+   
+
+    #predictions = Inversion.fit(alpha = 2e-3) # was macht alpha? 
+    #print(predictions)
+    #spatial_result = Inversion.map_on_grid(predictions[predictions['week']==52])
+    #spatial_result = spatial_result*12*10**(6)
+    #spatial_result.plot(x = 'longitude', y = 'latitude', cmap = 'seismic', cbar_kwargs = {'label' : r'flux [$\mu gCm^{-2}s^{-1}$]'})
+    #plt.savefig('/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/spatial_results_week_52_alpha_2e-3.png')
+    #print(predictions)
+    #get_total(Inversion)

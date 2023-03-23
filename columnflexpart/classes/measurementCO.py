@@ -242,15 +242,15 @@ class TcconMeasurement(ColumnMeasurement):
         if np.isnan(dataarray[0]).prod():
             dataarray[0] = dataarray[1]
         if with_averaging_kernel: 
-            averaging_kernel = self.data.ak_co2
+            averaging_kernel = self.data.ak_co
             not_levels = [k for k in dataarray.dims if k != "prior_Height"]
             no_data = np.isnan(dataarray).prod(not_levels).values.astype(bool)
             dataarray[no_data] = 0 # why do I set array to 0?
             # set values of averaging kernel to 0 for these values (only use prior here)
             averaging_kernel = xr.where(no_data, 0, averaging_kernel)
-            dataset = dataset.drop("ak_co2")
-            dataset = dataset.assign(dict(ak_co2 = averaging_kernel))
-            dataarray = dataarray * dataset.ak_co2 + dataset.prior_co2 * (1 - dataset.ak_co2) # was ist das für eine rechnung? In Inverse MEthods nachschauen 
+            dataset = dataset.drop("ak_co")
+            dataset = dataset.assign(dict(ak_co = averaging_kernel))
+            dataarray = dataarray * dataset.ak_co + dataset.prior_co * (1 - dataset.ak_co) # was ist das für eine rechnung? In Inverse MEthods nachschauen 
         pressure_weights = (dataset.prior_Pressure.values - np.pad(dataset.prior_Pressure.values, (0, 1), "constant")[1:])/dataset.prior_Pressure.values[0]# why pad statement here?
         pressure_weights = xr.DataArray(pressure_weights, dict(prior_Height = dataset.prior_Height.values))
         pw_dataarray = dataarray * pressure_weights

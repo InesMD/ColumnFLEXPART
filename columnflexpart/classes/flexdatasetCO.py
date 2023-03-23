@@ -17,7 +17,7 @@ from columnflexpart.classes.measurement import AcosMeasurement, ColumnMeasuremen
 from columnflexpart.utils import calc_enhancement, select_extent, to_tuple
 
 
-class FlexDataset:    
+class FlexDatasetCO:    
     """Class for postprocessing FLEXPART output. Includes plotting, enhancement and background calculation and metadata readout
     
     Attributes:
