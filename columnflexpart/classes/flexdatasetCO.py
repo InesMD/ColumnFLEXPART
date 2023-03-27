@@ -13,8 +13,8 @@ import cartopy.feature as cf
 import cartopy.crs as ccrs
 import pandas as pd
 import xarray as xr
-from columnflexpart.classes.measurement import AcosMeasurement, ColumnMeasurement, TcconMeasurement
-from columnflexpart.utils import calc_enhancement, select_extent, to_tuple
+from columnflexpart.classes.measurementCO import AcosMeasurement, ColumnMeasurement, TcconMeasurement
+from columnflexpart.utils.utilsCO import calc_enhancement, select_extent, to_tuple
 
 
 class FlexDatasetCO:    
@@ -350,13 +350,13 @@ class FlexDatasetCO:
             assert (
                 boundary == self._last_boundary
             ), f"No endpoints calculated for given boundary. Your input: boundary = {boundary}, boundary of current endpoints: {self._last_boundary}."
-            co2_means = (
-                self.trajectories.endpoints[["co2", "pointspec"]]
+            co_means = (
+                self.trajectories.endpoints[["co", "pointspec"]]#was co2 before
                 .groupby("pointspec")
                 .mean()
                 .values.flatten()
             )
-            self._background_layer = co2_means
+            self._background_layer = co_means
             self._save_result("background_layer", self._background_layer, boundary)
         return self._background_layer
 
@@ -368,11 +368,11 @@ class FlexDatasetCO:
         force_calculation: bool = False,
         chunks: dict = dict(time=10)
     ) -> list[float]:
-        """Calculates total CO2 value for each layer (release) of the footprint
+        """Calculates total CO value for each layer (release) of the footprint
 
         Args:
             ct_file (str, optional): String describing file names of CT2019B flux data before time stamp, e.g: '/path/to/data/CT2019B.flux1x1.'. Defaults to None.
-            boundary (list[float, float, float, float], optional): boundary to calculate CO2 for [longitude left, longitude right, latitude lower, latitude upper]. Defaults to None.
+            boundary (list[float, float, float, float], optional): boundary to calculate CO for [longitude left, longitude right, latitude lower, latitude upper]. Defaults to None.
             allow_read (bool, optional): Switch to allow reading the result fro the memory if possible. Defaults to True.
             force_calculation (bool, optional): Switch to force an new calculation. Defaults to False.
             chunks (dict, optional): Chucks to use for loaded dataset (dask). Defaults to dict(time=10).
@@ -400,18 +400,18 @@ class FlexDatasetCO:
         chunks: dict = dict(time=10),
         interpolate: bool = True
     ) -> float:
-        """Calculates total XCO2.
+        """Calculates total XCO.
 
         Args:
             ct_file (str, optional): String describing file names of CT2019B flux data before time stamp, e.g: '/path/to/data/CT2019B.flux1x1.'. Defaults to None.
-            boundary (list[float, float, float, float], optional): boundary to calculate CO2 for [longitude left, longitude right, latitude lower, latitude upper]. Defaults to None.
+            boundary (list[float, float, float, float], optional): boundary to calculate CO for [longitude left, longitude right, latitude lower, latitude upper]. Defaults to None.
             allow_read (bool, optional): Switch to allow reading the result fro the memory if possible. Defaults to True.
             force_calculation (bool, optional): Switch to force an new calculation. Defaults to False.
             chunks (dict, optional): Chucks to use for loaded dataset (dask). Defaults to dict(time=10).
             interpolate (bool): Whether to interpolate to measurement levels or not. Defaults to (True).
 
         Returns:
-            float: XCO2 of modeled measurement.
+            float: XCO of modeled measurement.
         """    
         total_layer = self.total_layer(ct_file, allow_read, boundary, force_calculation, chunks)
         #print('total layer done')
@@ -456,13 +456,13 @@ class FlexDatasetCO:
 
         Args:
             ct_file (str, optional): String describing file names of CT2019B flux data before time stamp, e.g: '/path/to/data/CT2019B.flux1x1.'. Defaults to None.
-            boundary (list[float, float, float, float], optional): boundary to calculate CO2 for [longitude left, longitude right, latitude lower, latitude upper]. Defaults to None.
+            boundary (list[float, float, float, float], optional): boundary to calculate CO for [longitude left, longitude right, latitude lower, latitude upper]. Defaults to None.
             allow_read (bool, optional): Switch to allow reading the result fro the memory if possible. Defaults to True.
             force_calculation (bool, optional): Switch to force an new calculation. Defaults to False.
             chunks (dict, optional): Chucks to use for loaded dataset (dask). Defaults to dict(time=10).
             interpolate (bool): Whether to interpolate to measurement levels or not. Defaults to (True).
         Returns:
-            float: Enhancement of CO2 in ppm
+            float: Enhancement of CO in ppm
         """
         molefractions = self.enhancement_layer(ct_file, boundary, allow_read, force_calculation, chunks)
         #self._save_result("enhancement_layer", molefractions, boundary)
@@ -505,15 +505,15 @@ class FlexDatasetCO:
         """Returns background calculation in ppm based on trajectories in trajectories.pkl file. Is either loaded from file, calculated or read from class.
 
         Args:
-            boundary (list[float, float, float, float], optional): boundary to calculate CO2 for [longitude left, longitude right, latitude lower, latitude upper]. Defaults to None.
+            boundary (list[float, float, float, float], optional): boundary to calculate CO for [longitude left, longitude right, latitude lower, latitude upper]. Defaults to None.
             allow_read (bool, optional): Switch to allow reading the result fro the memory if possible. Defaults to True.
             force_calculation (bool, optional): Switch to force an new calculation. Defaults to False.
             interpolate (bool): Whether to interpolate to measurement levels or not. Defaults to (True).
 
         Returns:
-            float: Background CO2 in ppm
+            float: Background CO in ppm
         """
-        co2_means = self.background_layer(allow_read, boundary, force_calculation)
+        co_means = self.background_layer(allow_read, boundary, force_calculation)
         if interpolate:
             mode = self._get_result_mode(self._background_inter, "background_inter", allow_read, force_calculation, boundary)
             if mode == "from_instance":
@@ -521,11 +521,11 @@ class FlexDatasetCO:
             elif mode == "load":
                 self._background_inter = self._load_result("background_inter", boundary)
             elif mode == "calculate":
-                co2_means = self._to_pointspec_dataarray(co2_means, "background_layer")
+                co_means = self._to_pointspec_dataarray(co_means, "background_layer")
                 pressures = self.measurement.surface_pressure() * self.pressure_factor(self.release["heights"], Tb=self.measurement.surface_temperature())
-                co2_means = self.measurement.interpolate_to_levels(co2_means, "pointspec", pressures)
-                co2_means = self.measurement.add_variables(co2_means)
-                self._background_inter = self.measurement.pressure_weighted_sum(co2_means, "background_layer", with_averaging_kernel=True).values
+                co_means = self.measurement.interpolate_to_levels(co_means, "pointspec", pressures)
+                co_means = self.measurement.add_variables(co_means)
+                self._background_inter = self.measurement.pressure_weighted_sum(co_means, "background_layer", with_averaging_kernel=True).values
                 self._background_inter = float(self._background_inter)
                 self._save_result("background_inter", self._background_inter, boundary)
             return self._background_inter
@@ -538,7 +538,7 @@ class FlexDatasetCO:
                 self._background = self._load_result("background", boundary)
             elif mode == "calculate":
                 pressure_weights = self.pressure_weights_from_height()
-                self._background = (co2_means * pressure_weights).sum()
+                self._background = (co_means * pressure_weights).sum()
                 self._save_result("background", self._background, boundary)
             return self._background
 
@@ -649,7 +649,7 @@ class FlexDatasetCO:
             Args:
                 outer (FlexDataset): FlexDataset of directory to read footprints from.
             """            
-            self._outer: FlexDataset = outer
+            self._outer: FlexDatasetCO = outer
             self._nc_path = outer._nc_path
             self._dir = outer._dir
             self.chunks = outer._kwargs["chunks"]
@@ -842,7 +842,7 @@ class FlexDatasetCO:
         Attributes:
             dataframe (pd.DataFrame): Holds the data for the trajectories. (From the trajectories.pkl file)
             endpoints (pd.DataFrame): Holds the endpoints of the trajectories when they are caluclated.
-            ct_data (xr.Dataset): Concentration data from CT2019B.
+            cams_data (xr.Dataset): Concentration data from CT2019B.
         """        
         def __init__(self, outer):
             """Sets attributes of Trajectories class.
@@ -861,7 +861,7 @@ class FlexDatasetCO:
             self._min_time = self.dataframe.time.min()
             self._max_time = self.dataframe.time.max()
             self.endpoints = None
-            self.ct_data = None
+            self.cams_data = None
 
         def ct_endpoints(
             self,
@@ -906,11 +906,11 @@ class FlexDatasetCO:
                     self.dataframe.groupby(self._id_key)["time"].idxmin()
                 ]
 
-            _ = self.load_ct_data(ct_dir, ct_dummy)
+            _ = self.load_cams_data(ct_dir, ct_dummy)
             # finding cells of endpoints for time longitude and latitude
             variables = ["time", "longitude", "latitude"]
             for i, var in enumerate(variables):
-                ct_vals = self.ct_data[var].values
+                ct_vals = self.cams_data[var].values
                 df_vals = df_total[var].values
                 diff = np.abs(df_vals[:, None] - ct_vals[None, :])
                 inds = np.argmin(diff, axis=-1)
@@ -920,16 +920,12 @@ class FlexDatasetCO:
                 column="pressure_height",
                 value=101300 * self._outer.pressure_factor(df_total.height),
             )
+
             # finding cells of endpoints for height
-            ct_vals = self.ct_data.pressure.isel(
-                time=xr.DataArray(df_total.ct_time.values),
-                latitude=xr.DataArray(df_total.ct_latitude.values),
-                longitude=xr.DataArray(df_total.ct_longitude.values),
-            )
             df_vals = df_total.pressure_height.values
-            diff = np.abs(df_vals[:, None] - ct_vals)
+            diff = np.abs(df_vals[:, None] - self.cams_data.reset_coords(names = 'pressure').pressure.values)
             inds = np.argsort(diff, axis=-1)[:, :2]
-            inds = abs(inds).min(axis=1)
+            inds = abs(inds).max(axis=1) # weil 60 das Level am Boden ist. Stimmt das? 
             df_total.insert(1, "ct_height", value=inds)
             # sorting and filtering
             self.endpoints = df_total.sort_values(self._id_key)
@@ -937,11 +933,11 @@ class FlexDatasetCO:
             self.endpoints.attrs["boundary"] = boundary
             self.endpoints.attrs["height unit"] = "m"
             self.endpoints.attrs["pressure unit"] = "Pa"
-            self.endpoints.attrs["co2 unit"] = "ppm"
+            self.endpoints.attrs["co unit"] = "ppb"
             self._outer._last_boundary = boundary
             return self.endpoints
 
-        def load_ct_data(self, ct_dir: str = None, ct_dummy: str = None) -> xr.Dataset:
+        def load_cams_data(self, ct_dir: str = None, ct_dummy: str = None) -> xr.Dataset:
             """Loads concentration data of CT2019B
 
             Args:
@@ -953,22 +949,34 @@ class FlexDatasetCO:
             """            
             if ct_dir is not None:
                 self._ct_dir = ct_dir
-            if ct_dummy is not None:
-                self._ct_dummy = ct_dummy
-            file_list = []
-            for date in np.arange(
-                self._min_time,
-                self._max_time + np.timedelta64(1, "D"),
-                dtype="datetime64[D]",
-            ):
-                date = str(date)
-                file_list.append(
-                    os.path.join(self._ct_dir, self._ct_dummy + date + ".nc")
-                )
-            ct_data = xr.open_mfdataset(file_list, combine="by_coords")
+            #if ct_dummy is not None:
+            #    self._ct_dummy = ct_dummy
 
-            self.ct_data = ct_data[["co2", "pressure"]].compute()
-            return self.ct_data
+            file_list = []
+            for year in range(2019, 2021): 
+                if year == 2019: 
+                    for month in range(9,13): 
+                        file_list.append(
+                            os.path.join(self._ct_dir, 'co_ml_' + str(year) + '_'+str(month).zfill(2)+'_1x1_3degbuffer.nc')
+                        )
+                else:
+                    for month in range(1,3): 
+                        file_list.append(
+                            os.path.join(self._ct_dir, 'co_ml_' + str(year) + '_'+str(month).zfill(2)+'_1x1_3degbuffer.nc')
+                        )
+            cams_data = xr.open_mfdataset(file_list, combine="by_coords")
+            level_attrbs = pd.read_csv(self._ct_dir+'ml_level_attrs.csv')
+            pressure = [float(x)*10**2 for x in np.array(level_attrbs['pf [hPa]'][1:])] # in Pa
+            cams_data = cams_data.assign_coords(dict({'pressure':('level', pressure)} ))
+            # psurfec = 1013.35hPa
+            # pf = full level pressure (at middle of level)
+            # ph = half level pressure (at bottom of layer)
+
+            self.cams_data = cams_data[["co", "pressure"]].compute() 
+            self.cams_data.co.values = self.cams_data.co.values/0.02801*0.0289647 
+            print(self.cams_data)
+            ##level in pressure umrechnen !!!!
+            return self.cams_data
 
         def save_endpoints(self, name: str = "endpoints.pkl", dir: str = None):
             """Saves calculated endpoints. 
@@ -998,23 +1006,23 @@ class FlexDatasetCO:
             self.endpoints = pd.read_pickle(read_path).sort_values(self._id_key)
             self._outer._last_boundary = self.endpoints.attrs["boundary"]
 
-        def co2_from_endpoints(
+        def co_from_endpoints(
             self,
             exists_ok: bool = True,
             boundary: list[float, float, float, float] = None,
             ct_dir: str = None,
             ct_dummy: str = None,
         ) -> np.ndarray:
-            """Returns CO2 at positions of the endpoints of the particles. Result is also saved to endpoints. Pressure weights are also calculated based on the pointspec value of the particles.
+            """Returns CO at positions of the endpoints of the particles. Result is also saved to endpoints. Pressure weights are also calculated based on the pointspec value of the particles.
 
             Args:
-                exists_ok (bool, optional): Flag for recalculation if co2 was allready calculated. Defaults to True.
+                exists_ok (bool, optional): Flag for recalculation if co was allready calculated. Defaults to True.
                 boundary (list, optional): Boundaries for optional endpoint calculateion if no endpoints exist so far. Defaults to None.
                 ct_dir (str, optional): Directory for carbon tracker data. Defaults to None.
                 ct_dummy (str, optional): Start of each Carbon Tracker file util the time stamp. Defaults to None.
 
             Returns:
-                np.ndarray: predicted CO2 values
+                np.ndarray: predicted CO values
             """
             if self.endpoints is None:
                 print(
@@ -1022,32 +1030,32 @@ class FlexDatasetCO:
                 )
                 _ = self.ct_endpoints(boundary, ct_dir, ct_dummy)
                 print("Done")
-            if self.ct_data is None:
-                _ = self.load_ct_data(ct_dir, ct_dummy)
+            if self.cams_data is None:
+                _ = self.load_cams_data(ct_dir, ct_dummy)
 
-            if "co2" in self.endpoints.columns:
+            if "co" in self.endpoints.columns:
                 print(
-                    "'co2' is allready in endpoints. To calculate again set exists_ok=Flase"
+                    "'co' is allready in endpoints. To calculate again set exists_ok=Flase"
                 ) or "n"
                 if not exists_ok:
-                    self.endpoints.drop("co2")
-                    co2_values = self.ct_data.co2.isel(
+                    self.endpoints.drop("co")
+                    co_values = self.cams_data.co.isel(
                         time=xr.DataArray(self.endpoints.ct_time.values),
                         latitude=xr.DataArray(self.endpoints.ct_latitude.values),
                         longitude=xr.DataArray(self.endpoints.ct_longitude.values),
                         level=xr.DataArray(self.endpoints.ct_height.values),
                     )
-                    self.endpoints.insert(loc=1, column="co2", value=co2_values)
+                    self.endpoints.insert(loc=1, column="co", value=co_values)
             else:
-                co2_values = self.ct_data.co2.isel(
+                co_values = self.cams_data.co.isel(
                     time=xr.DataArray(self.endpoints.ct_time.values),
                     latitude=xr.DataArray(self.endpoints.ct_latitude.values),
                     longitude=xr.DataArray(self.endpoints.ct_longitude.values),
                     level=xr.DataArray(self.endpoints.ct_height.values),
                 )
-                self.endpoints.insert(loc=1, column="co2", value=co2_values)
+                self.endpoints.insert(loc=1, column="co", value=co_values)
 
-            return self.endpoints.co2.values
+            return self.endpoints.co.values
 
         def plot(
             self,
