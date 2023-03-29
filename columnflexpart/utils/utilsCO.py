@@ -372,118 +372,72 @@ def load_cams_data(
     Returns:
         xr.DataArray: Loaded flux data
     """    
-    first_ant = True
-    first_bio = True
-    first_air = True
-    cams_flux_bio = xr.Dataset()
-    cams_flux_ant = xr.Dataset()
-    cams_flux_air = xr.Dataset()
-    for date in pd.date_range(startdate, enddate):
 
+    total_flux = xr.DataArray()
+    first_flux = True
+    for year in range(2019,2021):
+        cams_flux_bio = xr.DataArray()
+        cams_flux_ant = xr.Dataset()
+        cams_flux_air = xr.Dataset()
         for sector in ['AIR_v1.1', 'BIO_v3.1', 'ANT_v4.2']:
             if sector == 'ANT_v4.2':
-                print('Ant')
-                cams_file = 'CAMS-AU-'+sector+'_carbon-monoxide_'+str(date.year)+'_sum_regr1x1.nc'
+                cams_file = 'CAMS-AU-'+sector+'_carbon-monoxide_'+str(year)+'_sum_regr1x1.nc'
                 flux_ant_part = xr.open_mfdataset(
                     cams_path+cams_file,
                     combine="by_coords",
                     chunks="auto",
                     )
-                #print(flux_ant_part)
-                if first_ant:
-                    first_ant = False
-                    cams_flux_ant = flux_ant_part
-                else:
-                #    print(cams_flux_ant)
-                    cams_flux_ant = xr.concat([cams_flux_ant, flux_ant_part], dim="time")
-                print('Done ANT')
+                flux_ant_part = flux_ant_part.assign_coords({'year': ('time', [year*i for i in np.ones(12)])})
+                flux_ant_part = flux_ant_part.assign_coords({'MonthDate': ('time', [datetime(year=year, month= i, day = 1) for i in np.arange(1,13)])})
+                cams_flux_ant = flux_ant_part
+
             elif sector == 'BIO_v3.1': 
-                print('Bio')
-                cams_file = 'CAMS-AU-'+sector+'_carbon-monoxide_'+str(date.year)+'_regr1x1.nc'            
-           
+                cams_file = 'CAMS-AU-'+sector+'_carbon-monoxide_2019_regr1x1.nc'            
                 flux_bio_part = xr.open_mfdataset(
                 cams_path+cams_file,
                 combine="by_coords",
                 chunks="auto",
                 )
-                #print(flux_bio_part)
-                if first_bio:
-                    first_bio = False
-                    cams_flux_bio = flux_bio_part
-                else:
-                 #   print(cams_flux_bio)
-                    cams_flux_bio = xr.concat([cams_flux_bio, flux_bio_part], dim="time")
-                print('Finished Bio')
-            elif sector=='AIR_v1.1': 
-                print('Air')
-                cams_file = 'CAMS-AU-'+sector+'_carbon-monoxide_'+str(date.year)+'_regr1x1.nc'            
-                flux_air_part = xr.open_mfdataset(
-                cams_path+cams_file,
-                combine="by_coords",
-                chunks="auto",
-                )
-                print(flux_air_part)
-                if first_air:
-                    first_air = False
-                    cams_flux_air = flux_air_part
-                else:
-                    cams_flux_air = xr.concat([cams_flux_air, flux_air_part], dim="time")
-                print('finished air')
-    print('finished for loop ')
-    #print(cams_flux_air)
-    #print(cams_flux_bio)
-    #print(cams_flux_ant)
+                flux_bio_part = flux_bio_part.emiss_bio.mean('TSTEP')
+                flux_bio_part = flux_bio_part.assign_coords(dict({'time': ('time',[0,1,2,3,4,5,6,7,8,9,10,11] )}))
+                flux_bio_part = flux_bio_part.assign_coords({'year': ('time', [year*i for i in np.ones(12)])})
+                flux_bio_part = flux_bio_part.assign_coords({'MonthDate': ('time', [datetime(year=year, month= i, day = 1) for i in np.arange(1,13)])})
+                cams_flux_bio = flux_bio_part
+              
+            
 
+        total_flux_yr = cams_flux_ant['sum'] + cams_flux_bio
+        if first_flux:
+                first_flux = False
+                total_flux = total_flux_yr
+        else:
+            total_flux = xr.concat([total_flux, total_flux_yr], dim = 'time')
 
-    print(cams_flux_bio.TSTEP) # what is it? 
-    #print(cams_flux_bio.emiss_bio[:,0,:].values)
-    #print(cams_flux_bio.emiss_bio[:,1,:].values)
+        '''
+        elif sector=='AIR_v1.1': 
+            print('Air')
+            cams_file = 'CAMS-AU-'+sector+'_carbon-monoxide_'+str(year)+'_regr1x1.nc'            
+            flux_air_part = xr.open_mfdataset(
+            cams_path+cams_file,
+            combine="by_coords",
+            chunks="auto",
+            )
 
+            print(flux_air_part['level'])
+            if first_air:
+                first_air = False
+                cams_flux_air = flux_air_part
+            else:
+                cams_flux_air = xr.concat([cams_flux_air, flux_air_part], dim="time")
+            print('finished air')
+        '''
 
-    #print(cams_flux)
-    cams_flux = (
-        cams_flux.bio_emission
-        + cams_flux.sum
-        + cams_flux.air
-    )
-    cams_flux.name = "total_flux"
+    print(total_flux)
 
      # can be deleted when footprint has -179.5 coordinate
-    cams_flux = cams_flux[:, :, 1:]
-    return cams_flux
+    #cams_flux = cams_flux[:, :, 1:]
+    return total_flux
 
-
-    for date in pd.date_range(startdate, enddate):
-        ct_single_file = (
-            ct_file
-            + str(date.year)
-            + str(date.month).zfill(2)
-            + str(date.day).zfill(2)
-            + ".nc"
-        )
-        ct_flux_day = xr.open_mfdataset(
-            ct_single_file,
-            combine="by_coords",
-            drop_variables="time_components",
-            chunks="auto",
-        )
-        if first:
-            first = False
-            ct_flux = ct_flux_day
-        else:
-            ct_flux = xr.concat([ct_flux, ct_flux_day], dim="time")
-    # sum flux components:
-    ct_flux = (
-        ct_flux.bio_flux_opt
-        + ct_flux.ocn_flux_opt
-        + ct_flux.fossil_flux_imp
-        + ct_flux.fire_flux_imp
-    )
-    ct_flux.name = "total_flux"
-
-    # can be deleted when footprint has -179.5 coordinate
-    ct_flux = ct_flux[:, :, 1:]
-    return ct_flux
 
 def get_fp_array(fp_dataset: xr.Dataset) -> xr.DataArray:
     """Extracts and formats footprint data
