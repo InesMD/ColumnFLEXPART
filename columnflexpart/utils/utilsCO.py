@@ -372,6 +372,7 @@ def load_cams_data(
     Returns:
         xr.DataArray: Loaded flux data
     """    
+    import matplotlib.pyplot as plt
 
     total_flux = xr.DataArray()
     first_flux = True
@@ -398,11 +399,23 @@ def load_cams_data(
                 combine="by_coords",
                 chunks="auto",
                 )
+                #datetime_var = []
+                #for h_step in range(8): 
+                #    print(h_step*3)
+                #    print(flux_bio_part.emiss_bio.isel({'TSTEP':np.arange(h_step*3,h_step*3+3,1)}).mean('TSTEP'))
+                #datetime_var.append(datetime(year = year, month = m, day = )for m in [1,2,3,4,5,6,7,8,9,10,11,12])
+                    
                 flux_bio_part = flux_bio_part.emiss_bio.mean('TSTEP')
+                #print(flux_bio_part)
                 flux_bio_part = flux_bio_part.assign_coords(dict({'time': ('time',[0,1,2,3,4,5,6,7,8,9,10,11] )}))
                 flux_bio_part = flux_bio_part.assign_coords({'year': ('time', [year*i for i in np.ones(12)])})
                 flux_bio_part = flux_bio_part.assign_coords({'MonthDate': ('time', [datetime(year=year, month= i, day = 1) for i in np.arange(1,13)])})
                 cams_flux_bio = flux_bio_part
+                #print(cams_flux_bio)
+                if year ==2019: 
+                    plt.figure()
+                    cams_flux_bio.isel(dict({'time':11})).plot(x='longitude', y = 'latitude')
+                    plt.savefig('/work/bb1170/RUN/b382105/Data/CAMS/Fluxes/CAMS_bio_2019.png')
               
             
 
@@ -431,8 +444,8 @@ def load_cams_data(
                 cams_flux_air = xr.concat([cams_flux_air, flux_air_part], dim="time")
             print('finished air')
         '''
-
-    print(total_flux)
+    #print('load_cams_flux : total_flux')
+    #print(total_flux)
 
      # can be deleted when footprint has -179.5 coordinate
     #cams_flux = cams_flux[:, :, 1:]
@@ -473,17 +486,40 @@ def combine_flux_and_footprint(
         footprint = footprint.chunk(chunks=chunks)
         flux = flux.chunk(chunks=chunks)
     with dask.config.set(**{"array.slicing.split_large_chunks": True}):
-        fp_co = xr.merge([footprint, flux])
+        print(flux.to_dataset(name = 'total_flux').total_flux.values.max())
+        print(footprint.to_dataset().spec001_mr.values.max())
+        #print(flux)
+        fp_co = xr.merge([footprint.to_dataset(), flux.to_dataset(name = 'total_flux')])
+      #  print(fp_co)
     # 1/layer height*flux [kg/m²*s]*MCO[kg/mol]*fp[m^3*s/kg] * Mair[kg/mol]
-    fp_co = (
-        1 / 100 * fp_co.total_flux*0.028 * fp_co.spec001_mr * 0.029
-    )  # dim : time, latitude, longitude, pointspec: 36
+    print('fp_co:')
+    #print(fp_co.spec001_mr.values.max())
+    #print(fp_co.total_flux.values.max())
+    #print(fp_co.time.values)
+    tot_fp_co = xr.Dataset()
+    for i, time in enumerate(footprint.time.values): 
+        #print(i)
+        #print(time)
+        fp_co = (
+            1 / 100 * flux/0.028 * footprint[:,i,:,:] * 0.029*10**9)
+        #  1 / 100 * fp_co.total_flux*0.028 * fp_co.spec001_mr * 0.029) 
+         # dim : time, latitude, longitude, pointspec: 36
+         # #.astype(int) -time.astype('datetime64[Y]').astype(int)+ 1)
+        t = pd.to_datetime(time)
+        fp_co = fp_co.assign_coords({'time':('time', [t])})
+        fp_co.name = 'CO'
+        tot_fp_co = xr.merge([tot_fp_co, fp_co])
     # sum over time, latitude and longitude, remaining dim = layer
-    fp_co = fp_co.sum(dim=["time", "latitude", "longitude"])
-    fp_co = fp_co.compute()
-    fp_co.name = "CO"
-    fp_co = fp_co.to_dataset()
-    return fp_co
+    #print('fp_co:')
+    #print(fp_co.values)
+    tot_fp_co = tot_fp_co.sum(dim=["time", "latitude", "longitude"])
+    tot_fp_co = tot_fp_co.compute()
+    #print(tot_fp_co)
+    #tot_fp_co.name = "CO"
+    #tot_fp_co = tot_fp_co.to_dataset()
+    #print('fp_co before return')
+    #print(fp_co)
+    return tot_fp_co
 
 def calc_enhancement(
     fp_data: xr.Dataset,
@@ -515,7 +551,19 @@ def calc_enhancement(
     # from .interp can be deleted as soon as FP dim fits CTFlux dim, layers repeated???? therfore only first 36
     footprint = get_fp_array(fp_data).compute()
     # selct times of Footprint in fluxes
-    cams_flux = cams_flux.sel(time=slice(footprint.time.min(), footprint.time.max()))
+    #print(footprint.time.min())
+    #print(footprint.time.min().values.astype('datetime64[M]').astype(int) % 12 + 1)# % 12 + 1)
+    #print(pd.to_datetime(footprint.time.min()))
+    #print(datetime(year=year, month= i, day = 1))
+    fp_time_min = datetime(year = footprint.time.min().values.astype('datetime64[Y]').astype(int) + 1970, 
+                           month = footprint.time.min().values.astype('datetime64[M]').astype(int) % 12 + 1 , day = 1)
+    fp_time_max = datetime(year = footprint.time.max().values.astype('datetime64[Y]').astype(int) + 1970, 
+                           month = footprint.time.max().values.astype('datetime64[M]').astype(int) % 12 + 1 , day = 1)
+    #print('fp_time_max'+str(footprint.time.min()))
+    #print(fp_time_min)
+    cams_flux = cams_flux.set_index(time="MonthDate")
+    cams_flux = cams_flux.sel(time=slice(fp_time_min,fp_time_max))
+    #print(cams_flux)
     if boundary is not None:
         cams_flux = select_extent(cams_flux, *boundary)
 
@@ -524,7 +572,9 @@ def calc_enhancement(
     fp_co = combine_flux_and_footprint(cams_flux, footprint, chunks=chunks)
 
     molefractions = fp_co.CO.values
-    return molefractions * 1e9
+    print('enhancement molefractions:')
+    print(molefractions)
+    return molefractions 
 
 #######################
 # Optimal Lambda

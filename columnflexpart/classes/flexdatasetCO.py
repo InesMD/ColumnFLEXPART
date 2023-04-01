@@ -350,6 +350,7 @@ class FlexDatasetCO:
             assert (
                 boundary == self._last_boundary
             ), f"No endpoints calculated for given boundary. Your input: boundary = {boundary}, boundary of current endpoints: {self._last_boundary}."
+            #(self.trajectories.endpoints)
             co_means = (
                 self.trajectories.endpoints[["co", "pointspec"]]#was co2 before
                 .groupby("pointspec")
@@ -888,6 +889,8 @@ class FlexDatasetCO:
                         | (self.dataframe.latitude > boundary[3])
                     )
                 ]
+                #print('df_outside')
+                #(self.dataframe)
                 df_outside = (
                     df_outside.loc[df_outside.groupby(self._id_key)["time"].idxmax()]
                     .reset_index()
@@ -930,6 +933,8 @@ class FlexDatasetCO:
             # sorting and filtering
             self.endpoints = df_total.sort_values(self._id_key)
             self.endpoints = self.endpoints[np.sign(self.endpoints.pointspec) == 1]
+            #print('endpoints')
+            #(self.endpoints)
             self.endpoints.attrs["boundary"] = boundary
             self.endpoints.attrs["height unit"] = "m"
             self.endpoints.attrs["pressure unit"] = "Pa"
@@ -974,7 +979,7 @@ class FlexDatasetCO:
 
             self.cams_data = cams_data[["co", "pressure"]].compute() 
             self.cams_data.co.values = self.cams_data.co.values/0.02801*0.0289647 
-            print(self.cams_data)
+            #(self.cams_data)
             ##level in pressure umrechnen !!!!
             return self.cams_data
 
@@ -998,6 +1003,7 @@ class FlexDatasetCO:
                 name (str, optional): Name of output. Defaults to None (results in endpoints.pkl).
                 dir (dir, optional): Directory for file. Defaults to None.
             """
+            print('Loading endpoints')
             if name is None:
                 name = "endpoints.pkl"
             if dir is None:
@@ -1053,7 +1059,7 @@ class FlexDatasetCO:
                     longitude=xr.DataArray(self.endpoints.ct_longitude.values),
                     level=xr.DataArray(self.endpoints.ct_height.values),
                 )
-                self.endpoints.insert(loc=1, column="co", value=co_values)
+                self.endpoints.insert(loc=1, column="co", value=co_values*10**9)#in ppb 
 
             return self.endpoints.co.values
 
