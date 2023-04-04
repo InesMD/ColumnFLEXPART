@@ -357,6 +357,26 @@ def country_intersections(gdf, country, crs="EPSG:4326"):
 # ONLY ENHANCEMENT CALUCLATION
 ##############################
 #load_ct_data
+def load_GFED_data(startdate, enddate):
+    datapath = '/work/bb1170/RUN/b382105/Dataframes/GFEDs/'
+    savepath = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/Images/Setup_gridded/'
+    gdf = pd.read_pickle(datapath+'GDF_AU_CO_2019_2020.pkl')#emission in kgCO/m^2/month
+    print(startdate)
+    print(enddate)
+    #print(gdf)
+    #print(gdf['Date']>= startdate.date())
+    gdf = gdf[(gdf['Date']>= startdate)&
+              (gdf['Date']<= enddate)]
+    gdf['emission'][:] = gdf['emission'][:]/0.02801/(30*24*60*60) # in mol/m^2/s
+    #print(gdf)
+    gdf = gdf.drop(columns= ['index_x', 'total_emission', 'index_y', 'geometry', 'Year', 'Month'])
+    total_flux = gdf.set_index(['Lat', 'Long', 'Date']).to_xarray()
+    #print(total_flux.emission.max())
+    total_flux = total_flux.rename({'Date': 'time', 'Long': 'longitude', 'Lat': 'latitude', 'emission': 'total_flux'})
+
+    return total_flux
+
+
 def load_cams_data(
     cams_path: str,
     startdate: Union[np.datetime64, datetime],
@@ -449,7 +469,7 @@ def load_cams_data(
 
      # can be deleted when footprint has -179.5 coordinate
     #cams_flux = cams_flux[:, :, 1:]
-    return total_flux
+    return total_flux*10**3/28.01 # in molCO/m^2/s
 
 
 def get_fp_array(fp_dataset: xr.Dataset) -> xr.DataArray:
@@ -486,39 +506,23 @@ def combine_flux_and_footprint(
         footprint = footprint.chunk(chunks=chunks)
         flux = flux.chunk(chunks=chunks)
     with dask.config.set(**{"array.slicing.split_large_chunks": True}):
-        print(flux.to_dataset(name = 'total_flux').total_flux.values.max())
-        print(footprint.to_dataset().spec001_mr.values.max())
-        #print(flux)
         fp_co = xr.merge([footprint.to_dataset(), flux.to_dataset(name = 'total_flux')])
-      #  print(fp_co)
-    # 1/layer height*flux [kg/m²*s]*MCO[kg/mol]*fp[m^3*s/kg] * Mair[kg/mol]
-    print('fp_co:')
-    #print(fp_co.spec001_mr.values.max())
-    #print(fp_co.total_flux.values.max())
-    #print(fp_co.time.values)
+    # 1/layer height*flux [kg/m²*s]*1/MCO[kg/mol]*fp[m^3*s/kg] * Mair[kg/mol]
     tot_fp_co = xr.Dataset()
     for i, time in enumerate(footprint.time.values): 
-        #print(i)
-        #print(time)
         fp_co = (
-            1 / 100 * flux/0.028 * footprint[:,i,:,:] * 0.029*10**9)
+            1 / 100 * flux * footprint[:,i,:,:] * 0.029*10**9)
         #  1 / 100 * fp_co.total_flux*0.028 * fp_co.spec001_mr * 0.029) 
          # dim : time, latitude, longitude, pointspec: 36
-         # #.astype(int) -time.astype('datetime64[Y]').astype(int)+ 1)
         t = pd.to_datetime(time)
-        fp_co = fp_co.assign_coords({'time':('time', [t])})
+        fp_co = fp_co.drop('year')
+        fp_co = fp_co.where(fp_co.time[pd.to_datetime(fp_co.time.values).month== t.month], drop = True )
+        fp_co = fp_co.assign_coords({'time':('time', [t])})#, 'year': ('time', [t.year])})
         fp_co.name = 'CO'
         tot_fp_co = xr.merge([tot_fp_co, fp_co])
     # sum over time, latitude and longitude, remaining dim = layer
-    #print('fp_co:')
-    #print(fp_co.values)
     tot_fp_co = tot_fp_co.sum(dim=["time", "latitude", "longitude"])
     tot_fp_co = tot_fp_co.compute()
-    #print(tot_fp_co)
-    #tot_fp_co.name = "CO"
-    #tot_fp_co = tot_fp_co.to_dataset()
-    #print('fp_co before return')
-    #print(fp_co)
     return tot_fp_co
 
 def calc_enhancement(
@@ -542,38 +546,35 @@ def calc_enhancement(
     Returns:
         np.ndarray: Array of enhancement for each release of FLEXPART run
     """    
+    print('calc enhancement')
     # test the right order of dates
     assert enddate > startdate, "The startdate has to be before the enddate"
 
     # read CT fluxes (dayfiles) and merge into one file
-    cams_flux = load_cams_data(cams_path, startdate, enddate).compute()
+    #cams_flux = load_cams_data(cams_path, startdate, enddate).compute()
+    GFED_flux = load_GFED_data(startdate, enddate).compute()
+    print(GFED_flux)
 
     # from .interp can be deleted as soon as FP dim fits CTFlux dim, layers repeated???? therfore only first 36
     footprint = get_fp_array(fp_data).compute()
     # selct times of Footprint in fluxes
-    #print(footprint.time.min())
-    #print(footprint.time.min().values.astype('datetime64[M]').astype(int) % 12 + 1)# % 12 + 1)
-    #print(pd.to_datetime(footprint.time.min()))
-    #print(datetime(year=year, month= i, day = 1))
-    fp_time_min = datetime(year = footprint.time.min().values.astype('datetime64[Y]').astype(int) + 1970, 
-                           month = footprint.time.min().values.astype('datetime64[M]').astype(int) % 12 + 1 , day = 1)
-    fp_time_max = datetime(year = footprint.time.max().values.astype('datetime64[Y]').astype(int) + 1970, 
-                           month = footprint.time.max().values.astype('datetime64[M]').astype(int) % 12 + 1 , day = 1)
-    #print('fp_time_max'+str(footprint.time.min()))
-    #print(fp_time_min)
-    cams_flux = cams_flux.set_index(time="MonthDate")
-    cams_flux = cams_flux.sel(time=slice(fp_time_min,fp_time_max))
-    #print(cams_flux)
+    #fp_time_min = datetime(year = footprint.time.min().values.astype('datetime64[Y]').astype(int) + 1970, 
+    #                       month = footprint.time.min().values.astype('datetime64[M]').astype(int) % 12 + 1 , day = 1)
+    #fp_time_max = datetime(year = footprint.time.max().values.astype('datetime64[Y]').astype(int) + 1970, 
+    #                       month = footprint.time.max().values.astype('datetime64[M]').astype(int) % 12 + 1 , day = 1)
+
+    #cams_flux = cams_flux.set_index(time="MonthDate")
+    #cams_flux = cams_flux.sel(time=slice(fp_time_min,fp_time_max))
     if boundary is not None:
-        cams_flux = select_extent(cams_flux, *boundary)
+        #cams_flux = select_extent(cams_flux, *boundary)
+        GFED_flux = select_extent(GFED_flux, *boundary)
+
 
     # OLDVERSION pressure_weights = 1/(p_surf-0.1)*(fp_pressure_layers[0:-1]-fp_pressure_layers[1:])
     # FP_pressure_layers = np.array(range(numLayer,0,-1))*1000/numLayer
-    fp_co = combine_flux_and_footprint(cams_flux, footprint, chunks=chunks)
+    fp_co = combine_flux_and_footprint(GFED_flux, footprint, chunks=chunks)
 
     molefractions = fp_co.CO.values
-    print('enhancement molefractions:')
-    print(molefractions)
     return molefractions 
 
 #######################

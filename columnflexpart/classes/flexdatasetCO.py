@@ -350,7 +350,6 @@ class FlexDatasetCO:
             assert (
                 boundary == self._last_boundary
             ), f"No endpoints calculated for given boundary. Your input: boundary = {boundary}, boundary of current endpoints: {self._last_boundary}."
-            #(self.trajectories.endpoints)
             co_means = (
                 self.trajectories.endpoints[["co", "pointspec"]]#was co2 before
                 .groupby("pointspec")
@@ -415,7 +414,6 @@ class FlexDatasetCO:
             float: XCO of modeled measurement.
         """    
         total_layer = self.total_layer(ct_file, allow_read, boundary, force_calculation, chunks)
-        #print('total layer done')
         if interpolate:
             mode = self._get_result_mode(self._total_inter, "total_inter", allow_read, force_calculation, boundary)
             if mode == "from_instance":
@@ -427,7 +425,6 @@ class FlexDatasetCO:
                 pressures = self.measurement.surface_pressure() * self.pressure_factor(self.release["heights"], Tb=self.measurement.surface_temperature())
                 total_layer = self.measurement.interpolate_to_levels(total_layer, "pointspec", pressures)
                 total_layer = self.measurement.add_variables(total_layer)
-                #print('Before pressure_weighted_sum')
                 self._total_inter = self.measurement.pressure_weighted_sum(total_layer, "total_layer", with_averaging_kernel = True).values
                 self._total_inter = float(self._total_inter)
                 self._save_result("total_inter", self._total_inter, boundary)
@@ -983,7 +980,7 @@ class FlexDatasetCO:
             ##level in pressure umrechnen !!!!
             return self.cams_data
 
-        def save_endpoints(self, name: str = "endpoints.pkl", dir: str = None):
+        def save_endpoints(self, name: str = "endpoints_CO.pkl", dir: str = None):
             """Saves calculated endpoints. 
 
             Args:
@@ -1005,7 +1002,7 @@ class FlexDatasetCO:
             """
             print('Loading endpoints')
             if name is None:
-                name = "endpoints.pkl"
+                name = "endpoints_CO.pkl"
             if dir is None:
                 dir = self._dir
             read_path = os.path.join(dir, name)
