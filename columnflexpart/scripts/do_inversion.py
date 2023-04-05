@@ -404,10 +404,10 @@ def do_everything(savepath, Inversion, molecule_name, mask_datapath_and_name, we
         plot_averaging_kernel(Inversion,molecule_name, l, class_num, week_num,savepath, plot_spatially=False)# class_num
         plot_averaging_kernel(Inversion,molecule_name, l, class_num, week_num,savepath, plot_spatially=True)
         print('Plotting concentrations')
-        calc_concentrations(Inversion,  'CO',l, savepath)
+        #calc_concentrations(Inversion,  'CO',l, savepath)
         plot_weekly_concentrations(Inversion,'CO',l, savepath)
 
-savepath = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/Images_CO/Setup_gridded/'#Setup_AK_based2/'
+savepath = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/Images_CO/Setup_gridded_GFED/'#Setup_AK_based2/'
 non_equal_region_size = False
 # for CO2: 
 '''
@@ -423,9 +423,9 @@ Inversion = InversionBioclass(
 '''
 #for CO: 
 Inversion = InversionBioclassCO(
-    result_path="/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/predictions3_CO.pkl",
+    result_path="/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/predictions_CO_GFED_regr.pkl",#predictions_GFED_cut_tto_AU.pkl",
     month="2019-12", 
-    flux_path="/work/bb1170/RUN/b382105/Data/CAMS/Fluxes/Regridded_1x1/",
+    flux_path="/work/bb1170/RUN/b382105/Dataframes/GFEDs/",#/work/bb1170/RUN/b382105/Data/CAMS/Fluxes/Regridded_1x1/",
     bioclass_path= "/home/b/b382105/ColumnFLEXPART/resources/OekomaskAU_Flexpart_version8_all1x1", #'OekomaskAU_AKbased_2",#Flexpart_version8_all1x1
     time_coarse = None,
     boundary=[110.0, 155.0, -45.0, -10.0],
@@ -437,7 +437,7 @@ if non_equal_region_size == True:
     err = calc_errors_per_region(flux_err)
 else: 
     err = Inversion.get_land_ocean_error(1/100000)
-
+print(err)
 print('Initlaizing done')
 #plot_prior_spatially(Inversion,'CO',48, 52, savepath)
 #plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion,'CO', 48, 52,1e-29,vminv=None, diff =False)
@@ -456,8 +456,8 @@ print('Initlaizing done')
 
 
 #plot_input_mask(savepath,"/home/b/b382105/ColumnFLEXPART/resources/OekomaskAU_Flexpart_version8_all1x1", selection= regions_sensitive)
-do_everything(savepath, Inversion, 'CO',"/home/b/b382105/ColumnFLEXPART/resources/OekomaskAU_Flexpart_version8_all1x1",
-             1,1,6, err)
+#do_everything(savepath, Inversion, 'CO',"/home/b/b382105/ColumnFLEXPART/resources/OekomaskAU_Flexpart_version8_all1x1",
+#             1,1,6, err)
 do_everything(savepath, Inversion,'CO',"/home/b/b382105/ColumnFLEXPART/resources/OekomaskAU_Flexpart_version8_all1x1",
               48,52,6, err)
 

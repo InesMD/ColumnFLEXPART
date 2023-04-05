@@ -6,7 +6,7 @@ import datetime as datetim
 from tqdm.auto import tqdm
 import os
 import matplotlib.pyplot as plt
-from columnflexpart.utils.utilsCO import select_boundary, optimal_lambda
+from columnflexpart.utils.utilsCO import select_boundary, select_extent, optimal_lambda
 from columnflexpart.classes.flexdatasetCO import FlexDatasetCO
 from functools import partial
 import geopandas as gpd
@@ -75,7 +75,7 @@ class InversionCO():
 
         self.time_coord, self.isocalendar = self.get_time_coord(self.time_unit)
         self.footprints, self.concentrations, self.concentration_errs = self.get_footprint_and_measurement(self.concentration_key)
-        self.flux, self.flux_errs = self.get_flux()
+        self.flux, self.flux_errs = self.get_GFED_flux()
 
         self.coords = self.footprints.stack(new=[self.time_coord, *self.spatial_valriables]).new
 
@@ -301,16 +301,20 @@ class InversionCO():
             tuple[xr.DataArray,xr.DataArray]: fluxes and errors
         """   
         datapath = '/work/bb1170/RUN/b382105/Dataframes/GFEDs/'
-        gdf = pd.read_pickle(datapath+'GDF_AU_CO_2019_2020.pkl')#emission in kgCO/m^2/month
+        total_flux = xr.open_dataset(datapath+'GFED_2019_2020_regr1x1_date.nc')
+        #f = self.coarsen_data(total_flux, "mean", self.time_coarse)
+        #print(f)
+        #print(total_flux.emission.values)
+        #gdf = pd.read_pickle(datapath+'GDF_AU_CO_cut_to_AU_2019_2020.pkl')#emission in kgCO/m^2/month
         #print(gdf['Date']>= startdate.date())
-        gdf = gdf[(gdf['Date']>= pd.to_datetime(self.start))&
-                (gdf['Date']<= pd.to_datetime(self.stop))]
-        gdf['emission'][:] = gdf['emission'][:]/0.02801/(30*24*60*60) # in mol/m^2/s
+        #gdf = gdf[(gdf['Date']>= pd.to_datetime(self.start))&
+        #        (gdf['Date']<= pd.to_datetime(self.stop))]
+        #gdf['emission'][:] = gdf['emission'][:]/0.02801/(30*24*60*60) # in mol/m^2/s
         #print(gdf)
-        gdf = gdf.drop(columns= ['index_x', 'total_emission', 'index_y', 'geometry', 'Year', 'Month'])
-        total_flux = gdf.set_index(['Lat', 'Long', 'Date']).to_xarray()
+        #gdf = gdf.drop(columns= ['index_x', 'total_emission', 'index_y', 'geometry', 'Year', 'Month'])
+        #total_flux = gdf.set_index(['Date', 'Lat', 'Long']).to_xarray()
         #print(total_flux.emission.max())
-        total_flux = total_flux.rename({'Date': 'time', 'Long': 'longitude', 'Lat': 'latitude', 'emission': 'total_flux'})
+        total_flux = total_flux.rename({'Date': 'time',  'emission': 'total_flux'})
 
         # create new flux dataset with value assigned to every day in range date start and date stop 
         dates = [pd.to_datetime(self.start)]
@@ -322,12 +326,16 @@ class InversionCO():
         count = 0
         for i,dt in enumerate(dates): 
             for m in range(len(total_flux.time.values)): # of moths 
-                if dt.month == pd.to_datetime(total_flux.time[m].values).month: 
+                #print(pd.to_datetime(total_flux.time.values[m]))
+                if dt.month == pd.to_datetime(total_flux.time.values[m]).month: 
                 #    if bol == True: 
-                    fluxes[i,:,:] =  total_flux.total_flux[:,:,m]#/0.02801 
+                    fluxes[i,:,:] =  total_flux.total_flux[m,:,:]/0.02801/(30*24*60*60)#/0.02801 
      
         fluxes = fluxes.assign_coords({'time': ('time', dates), 'latitude': ('latitude', total_flux.latitude.values), 'longitude': ('longitude', total_flux.longitude.values)})
+        print(fluxes.longitude.values)
+        fluxes = select_extent(fluxes, *self.boundary)
         flux_mean = self.coarsen_data(fluxes, "mean", self.time_coarse)
+        print(flux_mean)
         flux_err = self.get_flux_err(fluxes, flux_mean)
         # Error of mean calculation
         return flux_mean, flux_err

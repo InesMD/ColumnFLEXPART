@@ -65,7 +65,7 @@ if __name__ == '__main__':
             
             #try: 
             #    tr.load_endpoints()
-            #    assert tr.endpoints.attrs["boundary"] == args.boundary
+             #   assert tr.endpoints.attrs["boundary"] == args.boundary
             #except Exception as e:
             #    print(e)
             tr.endpoints = None
