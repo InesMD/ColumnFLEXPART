@@ -72,7 +72,7 @@ def plot_prior_spatially(Inversion, molecule_name, week_min, week_max, savepath)
         spatial_flux = Inversion.map_on_grid(flux_mean[:,flux_mean['week']==week])
         plt.figure()
         ax = plt.axes(projection=ccrs.PlateCarree())  
-        spatial_flux.plot(x = 'longitude', y = 'latitude',  cmap = 'seismic', ax = ax, vmax = 1, vmin = -1, cbar_kwargs = {'label' : r'flux [$\mu$ gCm$^{-2}$s$^{-1}$]'})
+        spatial_flux.plot(x = 'longitude', y = 'latitude',  cmap = 'seismic', ax = ax, vmax = 0.5, vmin = -0.5, cbar_kwargs = {'label' : r'flux [$\mu$ gCm$^{-2}$s$^{-1}$]'})
         ax.coastlines()
         plt.title('Week '+str(week))
         plt.savefig(savepath+'Prior_'+molecule_name+'_mean_flux_spatial_week'+str(week)+'.png')
@@ -82,14 +82,14 @@ def plot_l_curve(Inversion,err, molecule_name, savepath, alpha):
     # [1e-8,2.5e-8,5e-8,1e-7,2.5e-7,5.92e-7,1e-6,2.5e-6,5e-6,1e-5,2.5e-5,5e-5,1e-4,2.5e-4,5e-4,1e-3,2.5e-3,4.32e-3,1e-2,2.5e-2,5e-2,1e-1,1.5e-1,5e-1,1]
     print('compute l curve')
     #inv_result = Inversion.compute_l_curve(alpha =[1e-60,1e-50,1e-45,1e-40,1e-38, 1e-35,1e-33, 1e-30, 1e-28,2e-27, 1e-25, 1e-23, 1e-20, 1e-17, 1e-16,1e-15, 1e-14, 1e-13, 1e-12,1e-11,3e-11,1e-10,4e-10,1e-9,2.16e-9,4e-9,1e-8,3e-8, 1e-7, 2e-7, 3e-7, 7.05e-7, 1.11e-6,2e-6,5e-6, 1e-5,2e-5, 3e-5,5e-5,1e-4, 2.6e-4, 3e-4, 6.23e-4, 8.92e-4,1.87e-3,3.3e-3, 1e-2,1.8e-2,3e-2,5e-2,7e-2, 1e-1,1.8e-1,3e-1,5e-1, 1], xerr = err)
-    inv_result = Inversion.compute_l_curve(alpha = [1e-8,2.5e-8,5e-8,1e-7,2e-7,5.92e-7,1e-6,2.5e-6,5e-6,1e-5,2.5e-5,5e-5,1e-4,2.5e-4,5e-4,1e-3,2.5e-3,4.32e-3,1e-2,2.5e-2,5e-2,1e-1,1.5e-1,5e-1,1], xerr = err)
+    inv_result = Inversion.compute_l_curve(alpha = [3e-19,1e-18,3e-18,1e-17,3e-17,1e-16,3e-16,1e-15,3e-15,1e-14, 5e-14,1e-13, 5e-13, 1e-12, 1e-11,3e-11,1e-10,5e-10,1e-9,4e-9,1e-8,2.5e-8,5e-8,1e-7,2e-7,5e-7,1e-6,2.5e-6,5e-6,1e-5,2.5e-5,5e-5,1e-4,2.5e-4,5e-4,1e-3,2.5e-3,4.32e-3,1e-2,2.5e-2,5e-2,1e-1,1.5e-1,5e-1,1], xerr = err)
     print('Plotting')
     plt.plot(inv_result["loss_regularization"],inv_result["loss_forward_model"])
-    fig, ax = Inversion.plot_l_curve(mark_ind = 4, mark_kwargs= dict(color = 'firebrick',label = r'$\lambda =2 \cdot 10^{-7}$'))
+    fig, ax = Inversion.plot_l_curve(mark_ind = 18, mark_kwargs= dict(color = 'firebrick',label = r'$\lambda =1 \cdot 10^{-9$'))
     plt.grid(axis = 'y', color = 'grey', linestyle = '--' )
     plt.legend()
     print('saving')
-    plt.savefig(savepath+str("{:e}".format(alpha))+'_'+molecule_name+'_err_per_reg_l_curve_xerr_extended.png')
+    plt.savefig(savepath+str("{:e}".format(alpha))+'_'+molecule_name+'_err_per_reg_l_curve_xerr_extended2.png')
 
 
 def plot_averaging_kernel(Inversion, molecule_name, alpha, class_num, week_num,savepath, plot_spatially, weekly = False):
@@ -116,10 +116,10 @@ def plot_averaging_kernel(Inversion, molecule_name, alpha, class_num, week_num,s
         ax = plt.axes(projection=ccrs.PlateCarree())  
         orig_map=plt.cm.get_cmap('gist_heat')
         reversed_map = orig_map.reversed()
-        ak_spatial.plot(norm = LogNorm(vmin = 1e-6), x='longitude', y='latitude',ax = ax,cmap = reversed_map)
+        ak_spatial.plot(norm = LogNorm(vmin = 1e-3), x='longitude', y='latitude',ax = ax,cmap = reversed_map)
         ax.coastlines()
         plt.title('Averaging kernel for 2019/12')
-        plt.savefig(savepath+str("{:e}".format(alpha))+'_'+molecule_name+'_err_per_reg_ak_spatial_gist_heat_reversed'+'log_1e-6_no_ocean.png')
+        plt.savefig(savepath+str("{:e}".format(alpha))+'_'+molecule_name+'_err_per_reg_ak_spatial_gist_heat_reversed'+'log_1e-3_no_ocean.png')
 
     #sk_shape # Seite 47
     elif plot_spatially == True and weekly == True: 
@@ -131,7 +131,7 @@ def plot_averaging_kernel(Inversion, molecule_name, alpha, class_num, week_num,s
             ax = plt.axes(projection=ccrs.PlateCarree())  
             orig_map=plt.cm.get_cmap('gist_heat')
             reversed_map = orig_map.reversed()
-            ak_spatial.plot(x='longitude', y='latitude',ax = ax, vmax = 1, vmin = 0, cmap = reversed_map)
+            ak_spatial.plot(norm = LogNorm(vmin = 1e-3), x='longitude', y='latitude',ax = ax, vmax = 1, cmap = reversed_map)
             ax.coastlines()
             plt.title('Averaging kernel for 2019 week '+str(week_list[week]))
             fig.savefig(savepath+str("{:e}".format(alpha))+'_'+molecule_name+'_err_per_reg_ak_spatial_gist_heat_reversed_week'+str(week_list[week])+'_no_ocean.png')
@@ -178,13 +178,13 @@ def plot_spatial_flux_results_or_diff_to_prior(savepath,  Inversion,molecule_nam
             spatial_flux = Inversion.map_on_grid(Inversion.flux[:,Inversion.flux['week']==week])
             spatial_flux = spatial_flux *factor
             spatial_result = (spatial_result*factor)-spatial_flux
-            spatial_result.plot(x = 'longitude', y = 'latitude',ax = ax, cmap = 'seismic',vmin = -20, vmax = 20, cbar_kwargs = {'label' : r'flux [$\mu$gC m$^{-2}$ s$^{-1}$]'})
+            spatial_result.plot(x = 'longitude', y = 'latitude',ax = ax, cmap = 'seismic',vmin = -50, vmax = 50, cbar_kwargs = {'label' : r'flux [$\mu$gC m$^{-2}$ s$^{-1}$]'})
             ax.coastlines()
             plt.title('Week '+str(week))
             plt.savefig(savepath+str("{:e}".format(alpha))+'_'+molecule_name+'_err_per_reg_Diff_to_prior_week_'+str(week)+'_xerr.png')
         else: 
             spatial_result = (spatial_result*factor)
-            spatial_result.plot(x = 'longitude', y = 'latitude',ax = ax, cmap = 'seismic',vmin = -20, vmax = 20, cbar_kwargs = {'label' : r'flux [$\mu$gC m$^{-2}$ s$^{-1}$]'})
+            spatial_result.plot(x = 'longitude', y = 'latitude',ax = ax, cmap = 'seismic',vmin = -50, vmax = 50, cbar_kwargs = {'label' : r'flux [$\mu$gC m$^{-2}$ s$^{-1}$]'})
             ax.coastlines()
             plt.title('Week '+str(week))
             plt.savefig(savepath+str("{:e}".format(alpha))+'_err_per_reg_Spatial_results_week_'+str(week)+'_xerr.png')
@@ -229,7 +229,7 @@ def calc_concentrations(Inversion, molecule_name,alpha, savepath):
     ax.set_xlim(left =  datetime(year = 2019, month = 11, day=30), right = datetime(year = 2020, month = 1, day=8))
     ax.grid(axis = 'both')
     ax.set_ylabel('concentration [ppm]')
-    ax.errorbar(x= datetime(year =2020, month = 1, day = 7), y = 407.5, yerr = ds['measurement_uncertainty'].mean(), marker = '.',markersize = 7,linestyle='None',color = 'dimgrey')
+    ax.errorbar(x= datetime(year =2020, month = 1, day = 7), y = 300, yerr = ds['measurement_uncertainty'].mean(), marker = '.',markersize = 7,linestyle='None',color = 'dimgrey')
     plt.xlabel('date')
 
     myFmt = DateFormatter("%Y-%m-%d")
@@ -281,6 +281,7 @@ def plot_weekly_concentrations(Inversion, molecule_name,alpha, savepath):
     
     concentration_results = Inversion.footprints_flat.values*Inversion.predictions_flat.values*factor
     conc_sum = concentration_results.sum(axis = 1)
+    #print(conc_sum)
     conc_tot = conc_sum + ds['background_inter']
     plt.rcParams.update({'font.size':14})   
     plt.rcParams.update({'errorbar.capsize': 5})
@@ -315,6 +316,9 @@ def plot_weekly_concentrations(Inversion, molecule_name,alpha, savepath):
         prior.append(ds['xco2_inter'].mean())
     for df in [df48, df49, df50, df51, df52, df1]: 
         conc.append(df['conc'].mean())
+    #print(background)
+    #print(prior)
+
 
     weeks = [48, 49, 50, 51, 52, 53]
     plt.plot(weeks, background, marker = 'o', label = 'Background')
@@ -389,25 +393,25 @@ def do_everything(savepath, Inversion, molecule_name, mask_datapath_and_name, we
     #l1 = 5.1e-27
     #l2 = 5.2e-27
     #l2 = 1e-29
-    l1 = 2e-7
+    l1 = 1e-9
     #l3= 1e-35
-    l2 = 1e-5
+    #l2 = 1e-5
     #l3 = 1e-15
-    for l in [l1,l2]:#,l3]:
+    for l in [l1]:#,l2]:#,l3]:
         #plot_l_curve(Inversion,molecule_name,savepath, l)
         predictions = Inversion.fit(alpha = l, xerr = err) 
         print('Plotting spatial results')
-        plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion,molecule_name, week_min, week_max,l,vminv=None, diff =False)
+        plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion,molecule_name, week_min, week_max,l,vminv=None, diff =True)
         print('Plotting spatial difference of results to prior')
-        #plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion, molecule_name,week_min, week_max,l,vminv=None, diff =True)
+        plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion, molecule_name,week_min, week_max,l,vminv=None, diff =True)
         print('Plotting averaging kernels')
         plot_averaging_kernel(Inversion,molecule_name, l, class_num, week_num,savepath, plot_spatially=False)# class_num
-        plot_averaging_kernel(Inversion,molecule_name, l, class_num, week_num,savepath, plot_spatially=True)
+        plot_averaging_kernel(Inversion,molecule_name, l, class_num, week_num,savepath, plot_spatially=True,weekly = True)
         print('Plotting concentrations')
-        #calc_concentrations(Inversion,  'CO',l, savepath)
+        calc_concentrations(Inversion,  'CO',l, savepath)
         plot_weekly_concentrations(Inversion,'CO',l, savepath)
 
-savepath = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/Images_CO/Setup_gridded_GFED/'#Setup_AK_based2/'
+savepath = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/Images_CO/Setup_gridded/'#Setup_AK_based2/'
 non_equal_region_size = False
 # for CO2: 
 '''
@@ -423,28 +427,28 @@ Inversion = InversionBioclass(
 '''
 #for CO: 
 Inversion = InversionBioclassCO(
-    result_path="/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/predictions_CO_GFED_regr.pkl",#predictions_GFED_cut_tto_AU.pkl",
+    result_path="/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/predictions3_CO.pkl",#predictions_GFED_cut_tto_AU.pkl",
     month="2019-12", 
-    flux_path="/work/bb1170/RUN/b382105/Dataframes/GFEDs/",#/work/bb1170/RUN/b382105/Data/CAMS/Fluxes/Regridded_1x1/",
+    flux_path="/work/bb1170/RUN/b382105/Data/CAMS/Fluxes/Regridded_1x1/",
     bioclass_path= "/home/b/b382105/ColumnFLEXPART/resources/OekomaskAU_Flexpart_version8_all1x1", #'OekomaskAU_AKbased_2",#Flexpart_version8_all1x1
     time_coarse = None,
     boundary=[110.0, 155.0, -45.0, -10.0],
     data_outside_month=False
 )
 
-flux_mean, flux_err = Inversion.get_GFED_flux()#Inversion.get_flux()
+flux_mean, flux_err = Inversion.get_flux()#Inversion.get_GFED_flux()
 if non_equal_region_size == True: 
     err = calc_errors_per_region(flux_err)
 else: 
     err = Inversion.get_land_ocean_error(1/100000)
-print(err)
+#print(err)
 print('Initlaizing done')
 #plot_prior_spatially(Inversion,'CO',48, 52, savepath)
 #plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion,'CO', 48, 52,1e-29,vminv=None, diff =False)
 
 #calc_errors_per_region(Inversion)
 
-#plot_l_curve(Inversion,err,'CO', savepath,2e-7)
+
 
 #l1,l2 = find_two_optimal_lambdas(Inversion,[1e-11,1], 1e-12)
 #plot_l_curve(Inversion, savepath, 4e-9)
@@ -453,13 +457,16 @@ print('Initlaizing done')
 #plot_averaging_kernel(Inversion,  0.0032959245592851234, 10, 6,savepath, True, True)
 #calc_concentrations(Inversion,  2.616672e-04, savepath)
 #plot_weekly_concentrations(Inversion, 'CO',1e-29, savepath)
+#calc_concentrations(Inversion,  'CO',1e-5, savepath)
+#plot_weekly_concentrations(Inversion,'CO',1e-5, savepath)
 
 
 #plot_input_mask(savepath,"/home/b/b382105/ColumnFLEXPART/resources/OekomaskAU_Flexpart_version8_all1x1", selection= regions_sensitive)
-#do_everything(savepath, Inversion, 'CO',"/home/b/b382105/ColumnFLEXPART/resources/OekomaskAU_Flexpart_version8_all1x1",
-#             1,1,6, err)
+do_everything(savepath, Inversion, 'CO',"/home/b/b382105/ColumnFLEXPART/resources/OekomaskAU_Flexpart_version8_all1x1",
+             1,1,6, err)
 do_everything(savepath, Inversion,'CO',"/home/b/b382105/ColumnFLEXPART/resources/OekomaskAU_Flexpart_version8_all1x1",
               48,52,6, err)
+plot_l_curve(Inversion,err,'CO', savepath,1e-9)
 
 #plot_weekly_concentrations(Inversion, 5.2e-27, savepath)
 #plot_weekly_concentrations(Inversion, e-26, savepath)
