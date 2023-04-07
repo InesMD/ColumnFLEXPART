@@ -281,6 +281,7 @@ class Inversion():
             x_prior = self.flux_flat.values
 
         if with_prior:
+            #print(len(concentration_errs.values))
             self.reg = bayesinverse.Regression(
                 y = self.concentrations.values*1e-6, 
                 K = self.footprints_flat.values, 
