@@ -70,6 +70,7 @@ def plot_prior_spatially(Inversion, molecule_name, week_min, week_max, savepath)
 
     for week in range(week_min, week_max+1):
         spatial_flux = Inversion.map_on_grid(flux_mean[:,flux_mean['week']==week])
+        spatial_flux.to_netcdf(savepath+'prior_spatially_week_'+str(week))
         plt.figure()
         ax = plt.axes(projection=ccrs.PlateCarree())  
         spatial_flux.plot(x = 'longitude', y = 'latitude',  cmap = 'seismic', ax = ax, vmax = 0.1, vmin = -0.1, cbar_kwargs = {'label' : r'flux [$\mu$ gCm$^{-2}$s$^{-1}$]'})
@@ -179,9 +180,9 @@ def plot_spatial_flux_results_or_diff_to_prior(savepath,  Inversion,molecule_nam
         #       #print(predictions)
         #       spat_result_class = Inversion.map_on_grid(pred[:,pred['bioclass']==bioclass])
         #       spat_result_class.to_netcdf(path =savepath+str("{:e}".format(alpha))+'_spatial_results_week_'+str(week)+'_bioclass_'+str(bioclass)+'.nc')
-        prediction = select_region_bioclass_based(Inversion.predictions[Inversion.predictions['week']==week])
-        spatial_result = Inversion.map_on_grid(prediction[prediction['week']==week])
-        #spatial_result = Inversion.map_on_grid(Inversion.predictions[Inversion.predictions['week']==week])
+        #prediction = select_region_bioclass_based(Inversion.predictions[Inversion.predictions['week']==week])
+        #spatial_result = Inversion.map_on_grid(prediction[prediction['week']==week])
+        spatial_result = Inversion.map_on_grid(Inversion.predictions[Inversion.predictions['week']==week])
         ax = plt.axes(projection=ccrs.PlateCarree())  
         if diff== True: 
             spatial_flux = Inversion.map_on_grid(Inversion.flux[:,Inversion.flux['week']==week])
@@ -193,13 +194,14 @@ def plot_spatial_flux_results_or_diff_to_prior(savepath,  Inversion,molecule_nam
             plt.savefig(savepath+str("{:e}".format(alpha))+'_'+molecule_name+'_err_per_reg_Diff_to_prior_week_'+str(week)+'_xerr.png')
         else: 
             spatial_result = (spatial_result*factor)
+            #spatial_result = spatial_result.where(spatial_result.values>0.5)
             print(week)
             print(spatial_result.min())
             spatial_result.plot(x = 'longitude', y = 'latitude',ax = ax, cmap = 'seismic',vmin = -10, vmax = 10, cbar_kwargs = {'label' : r'flux [$\mu$gC m$^{-2}$ s$^{-1}$]'})
             ax.coastlines()
             plt.title('Week '+str(week))
             plt.savefig(savepath+str("{:e}".format(alpha))+'_err_per_reg_Spatial_results_week_'+str(week)+'_xerr.png')
-            spatial_result.to_netcdf(path =savepath+str("{:e}".format(alpha))+'_'+molecule_name+'_spatial_less_selected_results_week_'+str(week)+'.nc')
+            #spatial_result.to_netcdf(path =savepath+str("{:e}".format(alpha))+'_'+molecule_name+'_spatial_less_selected_results_week_'+str(week)+'.nc')
     #total_spatial_result.to_netcdf(path =savepath+'spatial_results_week_'+str(week_min)+'_'+str(week_max)+'.pkl')
 
 
@@ -401,25 +403,39 @@ def calc_emission_factors(savepath, datapathCO, datapathCO2, alpha, week_min, we
     means = []
     std = []
     #savepath = savepath+str(alpha)+'/'
-    for week in range(week_min, week_max+1): 
-        ds_co = xr.open_dataset(datapathCO+'{:e}'.format(alpha)+'_CO_less_AK_1e-2_selected_results_week_'+str(week)+'.nc')
-        ds_co2 = xr.open_dataset(datapathCO2+'{:e}'.format(alpha)+'_CO2_less_AK_1e-2_selected_results_week_'+str(week)+'.nc')
-        ratio = ds_co2. __xarray_dataarray_variable__ /ds_co.__xarray_dataarray_variable__ *1e-3#mikro g carbon/mirko g C
+   
+    for wnum, week in enumerate([1,48,49,50,51,52]): 
+        #ds_co = xr.open_dataset(datapathCO+'{:e}'.format(alpha)+'_CO_less_AK_1e-2_selected_results_week_'+str(week)+'.nc')
+        #ds_co2 = xr.open_dataset(datapathCO2+'{:e}'.format(alpha)+'_CO2_less_AK_1e-2_selected_results_week_'+str(week)+'.nc')
+        ds_co = xr.open_dataset(datapathCO+'prior_spatially_week_'+str(week))
+        ds_co2 = xr.open_dataset(datapathCO2+'prior_spatially_week_'+str(week))
+
+        #ds_co, ds_co2 = select_region_ak_based(alpha, datapathCO, datapathCO2, week, wnum )
+        #print(ds_co)
+        #ds_co = ds_co.where(ds_co.__xarray_dataarray_variable__.values>0.5)
+        #ds_co2 = ds_co2.where(ds_co.__xarray_dataarray_variable__.values>0.5)
+        #print(ds_co)
+
+        ratio = ds_co.__xarray_dataarray_variable__ /ds_co2.__xarray_dataarray_variable__ *1e3#mikro g carbon/mirko g C
         print(ratio)
         means.append(ratio.mean())
         std.append(ratio.std())
         plt.figure()
         ax = plt.axes(projection=ccrs.PlateCarree())  
-        ratio.plot(x='longitude', y='latitude', cmap = 'seismic', vmax = 0.6, vmin = -0.6, cbar_kwargs = {'label' : f'$\Delta$ CO$_2$ / $\Delta$ CO $\cdot 10^{-3}$', 'shrink': 0.8})
+        ratio.plot(x='longitude', y='latitude', cmap = 'seismic', vmax=20, vmin = -20, cbar_kwargs = {'label' : f'$\Delta$ CO / $\Delta$ CO$_2$ $\cdot 10^{3}$', 'shrink': 0.8})
         plt.title('Fire emission ratios 2019 week '+str(week))
         ax.coastlines()
-        plt.savefig(savepath+'less_AK_1e-2_selected_fire_emission_ratios_co2_co_6e-1_week_'+str(week)+'.png')
+        plt.savefig(savepath+'prior_co_co2_week_'+str(week)+'.png')#AK_and_CO_5e-1_selected_co_co2_week_'+str(week)+'.png')
+       # plt.savefig(savepath+'less_AK_1e-2_selected_fire_emission_ratios_co2_co_6e-1_week_'+str(week)+'.png')
     plt.figure()
-    plt.plot(np.arange(week_min, week_max+1,1), means)
-    plt.fill_between(np.arange(week_min, week_max+1,1), np.array(means)-np.array(std), np.array(means)+np.array(std), alpha = 0.5)
+    #plt.plot(np.arange(week_min, week_max+1,1), means)
+    #plt.fill_between(np.arange(week_min, week_max+1,1), np.array(means)-np.array(std), np.array(means)+np.array(std), alpha = 0.5)
+    plt.plot([1,48,49,50,51,52], means)
+    plt.fill_between([1,48,49,50,51,52], np.array(means)-np.array(std), np.array(means)+np.array(std), alpha = 0.5)
     plt.ylim((-0.4, 0.4))
     plt.title('Weekly mean fire emission ratios')
-    plt.savefig(savepath+'less_AK_1-2_selected_fire_ylim_0.4_emission_co2_co_ratios.png')
+    plt.savefig(savepath+'prior_co_co2.png')#'AK_and_CO_5e-1_selected_co2_co.png')
+    #plt.savefig(savepath+'less_AK_1-2_selected_fire_ylim_0.4_emission_co2_co_ratios.png')
 
 def select_region_bioclass_based(predictions_co):#, predictions_co2):
     fire_reg= [ 391,392,393,
@@ -462,21 +478,23 @@ def select_region_bioclass_based(predictions_co):#, predictions_co2):
     
     return  fire_pred_co.variable
 
-def select_region_ak_based(alpha, datapathCO, datapathCO2 ): 
+def select_region_ak_based(alpha, datapathCO, datapathCO2 , week, wnum): 
     #ak_spatial = Inversion.map_on_grid_without_time_coord(ak_xr, class_num)
-    week_list = [1,48,49,50,51,52]
-    for wnum, week in enumerate(week_list): 
-        akco = xr.open_dataset(datapathCO+str("{:e}".format(alpha))+'_CO_ak_CO_spatially_less_selected_week_'+str(week)+'.nc')
-        akco2 = xr.open_dataset(datapathCO2+str("{:e}".format(alpha))+'_CO2_ak_CO2_spatially_less_selected_week_'+str(wnum)+'.nc')
-        
-        ds_co = xr.open_dataset(datapathCO+'{:e}'.format(alpha)+'_CO_spatial_less_selected_results_week_'+str(week)+'.nc')
-        ds_co2 = xr.open_dataset(datapathCO2+'{:e}'.format(alpha)+'_CO2_spatial_less_selected_results_week_'+str(week)+'.nc')
-        print((akco.__xarray_dataarray_variable__>1e-3))
-        ds_co = ds_co.where((akco>1e-2)&(akco2>1e-2)).fillna(0)#&(akco2>1e-3))
-        #print(ds_co)
-        ds_co2 = ds_co2.where((akco>1e-2)&(akco2>1e-2))
-        ds_co.to_netcdf(datapathCO+'{:e}'.format(alpha)+'_CO_less_AK_1e-2_selected_results_week_'+str(week)+'.nc')
-        ds_co2.to_netcdf(datapathCO2+'{:e}'.format(alpha)+'_CO2_less_AK_1e-2_selected_results_week_'+str(week)+'.nc')
+    
+    #for wnum, week in enumerate(week_list): 
+    akco = xr.open_dataset(datapathCO+str("{:e}".format(alpha))+'_CO_ak_CO_spatially_week_'+str(wnum)+'.nc')
+    akco2 = xr.open_dataset(datapathCO2+str("{:e}".format(alpha))+'_CO2_ak_CO2_spatially_week_'+str(wnum)+'.nc')
+    
+    ds_co = xr.open_dataset(datapathCO+'{:e}'.format(alpha)+'_CO_spatial_results_week_'+str(week)+'.nc')
+    ds_co2 = xr.open_dataset(datapathCO2+'{:e}'.format(alpha)+'_CO2_spatial_results_week_'+str(week)+'.nc')
+    print((akco.__xarray_dataarray_variable__>1e-3))
+    ds_co = ds_co.where((akco>1e-3)&(akco2>1e-3)).fillna(0)#&(akco2>1e-3))
+    #print(ds_co)
+    ds_co2 = ds_co2.where((akco>1e-3)&(akco2>1e-3))
+
+    return ds_co, ds_co2
+        #ds_co.to_netcdf(datapathCO+'{:e}'.format(alpha)+'_CO_less_AK_1e-2_selected_results_week_'+str(week)+'.nc')
+        #ds_co2.to_netcdf(datapathCO2+'{:e}'.format(alpha)+'_CO2_less_AK_1e-2_selected_results_week_'+str(week)+'.nc')
         #plt.savefig
 
 
@@ -506,12 +524,12 @@ def do_everything(savepath, Inversion, molecule_name, mask_datapath_and_name, we
     l3 = 1e-5
     #l2 = 5e-5
     #l1 = 7e-6
-    l2 = 1e-9
+    #l2 = 1e-9
     #l1 = 8e-7
     #l0 = 9e-7
     #l5 = 5e-7
     #l3 = 1e-15
-    for l in [ l2, l3]:#,l2]:#,l3]:
+    for l in [  l3]:#,l2]:#,l3]:
         #plot_l_curve(Inversion,molecule_name,savepath, l)
         predictions = Inversion.fit(alpha = l, xerr = err) 
         print('Plotting spatial results')
@@ -520,7 +538,7 @@ def do_everything(savepath, Inversion, molecule_name, mask_datapath_and_name, we
         plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion, molecule_name,week_min, week_max,l,vminv=None, diff =False)
         print('Plotting averaging kernels')
         #plot_averaging_kernel(Inversion,molecule_name, l, class_num, week_num,savepath, plot_spatially=False)# class_num
-        plot_averaging_kernel(Inversion,molecule_name, l, class_num, week_num,savepath, plot_spatially=True,weekly = True)
+        #plot_averaging_kernel(Inversion,molecule_name, l, class_num, week_num,savepath, plot_spatially=True,weekly = True)
         #plot_averaging_kernel(Inversion,molecule_name, l, class_num, week_num,savepath, plot_spatially=True)
         print('Plotting concentrations')
         #calc_concentrations(Inversion,  'CO',l, savepath)
@@ -562,23 +580,28 @@ else:
 
 #print(err)
 
+print(err.min())
+print(err.max())
+print(err)
 
-'''
+
 print('Initlaizing done')
+#plot_prior_spatially(Inversion, 'CO', 48, 52, savepath)
+#plot_prior_spatially(Inversion, 'CO', 1, 1, savepath)
 #plot_prior_spatially(Inversion,'CO',48, 52, savepath)
 #plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion,'CO', 48, 52,1e-29,vminv=None, diff =False)
 
 #calc_errors_per_region(Inversion)
 
 
+'''
 
-
-#calc_emission_factors('/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/Images/Setup_gridded/Ratios/1e-5/',
+#calc_emission_factors('/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/Images/Setup_gridded/Ratios/',
 #    '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/Images_CO/Setup_gridded/',
 #                      '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/Images/Setup_gridded/',
 #                       1e-5, 1, 1)
 
-#calc_emission_factors('/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/Images/Setup_gridded/Ratios/1e-5/',
+#calc_emission_factors('/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/Images/Setup_gridded/Ratios/',
 #   '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/Images_CO/Setup_gridded/',
 #                      '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/Images/Setup_gridded/',
 #                       1e-5, 48, 52)
@@ -618,8 +641,8 @@ plot_input_mask(savepath,"/home/b/b382105/ColumnFLEXPART/resources/OekomaskAU_Fl
 
 
 
-select_region_ak_based(1e-5, '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/Images_CO/Setup_gridded/',
-                        '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/Images/Setup_gridded/' )
+#select_region_ak_based(1e-5, '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/Images_CO/Setup_gridded/',
+#                        '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/Images/Setup_gridded/' )
 
 #l1,l2 = find_two_optimal_lambdas(Inversion,[1e-11,1], 1e-12)
 #plot_l_curve(Inversion, err, 'CO',savepath, 1e-35)
@@ -641,11 +664,11 @@ select_region_ak_based(1e-5, '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one
 
 calc_emission_factors('/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/Images/Setup_gridded/Ratios/1e-5/',
     '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/Images_CO/Setup_gridded/',
-                      '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/Images/Setup_gridded/',
+                     '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/Images/Setup_gridded/',
                        1e-5, 1, 1)
 calc_emission_factors('/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/Images/Setup_gridded/Ratios/1e-5/',
     '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/Images_CO/Setup_gridded/',
-                      '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/Images/Setup_gridded/',
+                     '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/Images/Setup_gridded/',
                        1e-5, 48, 52)
 
 #plot_l_curve(Inversion,err,'CO', savepath,1e-9)

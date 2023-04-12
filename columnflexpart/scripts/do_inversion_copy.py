@@ -70,6 +70,7 @@ def plot_prior_spatially(Inversion, molecule_name, week_min, week_max, savepath)
 
     for week in range(week_min, week_max+1):
         spatial_flux = Inversion.map_on_grid(flux_mean[:,flux_mean['week']==week])
+        spatial_flux.to_netcdf(savepath+'prior_spatially_week_'+str(week))
         plt.figure()
         ax = plt.axes(projection=ccrs.PlateCarree())  
         spatial_flux.plot(x = 'longitude', y = 'latitude',  cmap = 'seismic', ax = ax, vmax = 100, vmin = -100, cbar_kwargs = {'label' : r'flux [$\mu$ gCm$^{-2}$s$^{-1}$]'})
@@ -503,6 +504,8 @@ else:
     err = Inversion.get_land_ocean_error(1/100000)
 print(err)
 print('Initlaizing done')
+plot_prior_spatially(Inversion, 'CO2', 48, 52, savepath)
+plot_prior_spatially(Inversion, 'CO2', 1, 1, savepath)
 #plot_prior_spatially(Inversion,'CO',48, 52, savepath)
 #plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion,'CO', 48, 52,1e-29,vminv=None, diff =False)
 
@@ -522,10 +525,10 @@ print('Initlaizing done')
 
 
 #plot_input_mask(savepath,"/home/b/b382105/ColumnFLEXPART/resources/OekomaskAU_Flexpart_version8_all1x1", selection= regions_sensitive)
-do_everything(savepath, Inversion, 'CO2',"/home/b/b382105/ColumnFLEXPART/resources/OekomaskAU_Flexpart_version8_all1x1",
-             1,1,6, err)
-do_everything(savepath, Inversion,'CO2',"/home/b/b382105/ColumnFLEXPART/resources/OekomaskAU_Flexpart_version8_all1x1",
-              48,52,6, err)
+#do_everything(savepath, Inversion, 'CO2',"/home/b/b382105/ColumnFLEXPART/resources/OekomaskAU_Flexpart_version8_all1x1",
+#             1,1,6, err)
+#do_everything(savepath, Inversion,'CO2',"/home/b/b382105/ColumnFLEXPART/resources/OekomaskAU_Flexpart_version8_all1x1",
+#              48,52,6, err)
 #plot_l_curve(Inversion,err,'CO2', savepath,1e-9)
 #plot_weekly_concentrations(Inversion, 5.2e-27, savepath)
 #plot_weekly_concentrations(Inversion, e-26, savepath)
