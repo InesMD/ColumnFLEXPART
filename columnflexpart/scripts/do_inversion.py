@@ -111,14 +111,26 @@ def plot_l_curve(Inversion,err, molecule_name, savepath, alpha):
 
     #1e-60,1e-55,1e-52,1e-50,1e-45,1e-40,1e-38, 1e-36, 1e-35,1e-34,1e-33,1e-32,1e-31, 5e-31, 2e-30,1e-29,5e-29, 1e-28,5e-28,1e-27,1e-26,5e-26, 1e-25,5e-25,1e-24, 1e-23,1e-22,1e-21, 1e-20,1e-19,1e-18, 1e-17,
     print('compute l curve')
-    inv_result = Inversion.compute_l_curve(alpha =[1e-16,1e-15, 1e-14, 1e-13, 1e-12,1e-11,1e-10,1e-9,1e-8, 1e-7, 7.05e-7,1e-6,5e-6, 1e-5,5e-5, 1e-4,5e-4, 1e-3,5e-3,1e-2,5e-2, 1e-1], xerr = err)
+    inv_result = Inversion.compute_l_curve(cond = 1e-14,alpha =[1e-5,4e-5, 1e-4,4e-4,1e-3,4e-3,1e-2,4e-2, 1e-1,4e-1, 1,4, 10], xerr = err)
     #inv_result = Inversion.compute_l_curve(alpha = [3e-19,1e-18,3e-18,1e-17,3e-17,1e-16,3e-16,1e-15,3e-15,1e-14, 5e-14,1e-13, 5e-13, 1e-12, 1e-11,3e-11,1e-10,5e-10,1e-9,4e-9,1e-8,2.5e-8,5e-8,1e-7,2e-7,
     #                                                5e-7,1e-6,2.5e-6,5e-6,1e-5,2.5e-5,5e-5,1e-4,2.5e-4,5e-4,1e-3,2.5e-3,4.32e-3,1e-2,2.5e-2,5e-2,1e-1,1.5e-1,5e-1,1], xerr = err)
     #inv_result = Inversion.compute_l_curve(alpha = [1e-17,5e-17,1e-16,5e-16,1e-15,5e-15,1e-14, 5e-14,1e-13, 5e-13, 1e-12, 5e-12,1e-11,5e-11,1e-10,5e-10,1e-9,4e-9,1e-8,2.5e-8,5e-8,1e-7,2e-7,5e-7,1e-6,2.5e-6,5e-6,1e-5,2.5e-5,5e-5,1e-4,2.5e-4,5e-4,1e-3,2.5e-3,4.32e-3,1e-2,2.5e-2,5e-2,1e-1,1.5e-1,5e-1,1], xerr = err)
     print('Plotting')
-    plt.plot(inv_result["loss_regularization"],inv_result["loss_forward_model"])
-    fig, ax = Inversion.plot_l_curve(mark_ind = 9, mark_kwargs= dict(color = 'firebrick',label = r'$\lambda =1 \cdot 10^{-7}$'))
-    plt.grid(axis = 'y', color = 'grey', linestyle = '--' )
+    plt.figure()
+    print(inv_result)
+    #plt.scatter(inv_result["loss_regularization"],inv_result["loss_forward_model"])
+    #plt.plot(inv_result["loss_regularization"],inv_result["loss_forward_model"])
+    plt.scatter(inv_result["loss_forward_model"],inv_result["loss_regularization"], color = 'black')
+    plt.scatter(inv_result["loss_forward_model"][8], inv_result["loss_regularization"][8], color = 'firebrick', label = '$\lambda = 10^{-1}$')
+    plt.plot(inv_result["loss_forward_model"],inv_result["loss_regularization"], color = 'black')
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.ylabel('Regularization loss')
+    plt.xlabel('Forward model loss')
+    #plt.xlim((0,1e7))
+    #plt.ylim((0, 4e-13))
+    #fig, ax = Inversion.plot_l_curve(mark_ind = 17, mark_kwargs= dict(color = 'firebrick',label = r'$\lambda =1 \cdot 10^{-3}$'))
+    #plt.grid(axis = 'y', color = 'grey', linestyle = '--' )
     plt.legend()
     print('saving')
     plt.savefig(savepath+str("{:e}".format(alpha))+'_'+molecule_name+'_err_per_reg_l_curve_xerr_extended2.png')
@@ -177,7 +189,7 @@ def plot_averaging_kernel(Inversion, molecule_name, alpha, class_num, week_num,s
         #ak_xr = xr.DataArray(data = ak_sum[0:class_num].diagonal()[1:], dims = ['bioclass', 'week'], coords=dict(bioclass= list(np.arange(1,class_num)), week = 1))
     else: 
         plt.figure()
-        plt.imshow(ak_final, vmin = 0, vmax = 0.2) #vmax = 1,
+        plt.imshow(ak_final, vmin = 0, vmax = 1) #vmax = 1,
         plt.colorbar()
         plt.savefig(savepath+str("{:e}".format(alpha))+'_'+molecule_name+'_ak_final_2d.png')
  
@@ -421,7 +433,7 @@ def calc_errors_per_region(flux_err, area_bioreg):
     for j in range(len(flux_err.bioclass.values)): 
         flux_err_mean[j] = flux_err[j,:].mean().values
 
-    area_bioreg[0] = area_bioreg[0]*1000000000000 # make error for Ocean smaller
+    area_bioreg[0] = area_bioreg[0]*10000000#0000000 # make error for Ocean smaller
     res = flux_err_mean * (1/area_bioreg)
     res_scaled = np.zeros((len(flux_err.bioclass.values), len(flux_err.week.values)))
     for i in range(len(flux_err.week.values)):
@@ -573,8 +585,8 @@ def do_everything(savepath, Inversion, molecule_name, mask_datapath_and_name, we
     class_num = plot_input_mask(savepath,mask_datapath_and_name)
     plot_prior_spatially(Inversion,molecule_name,week_min, week_max, savepath)
     l1, l2 = find_two_optimal_lambdas(Inversion,[1e-14,1], 1e-15)# 1e-8
-    l3 = 1e-5
-    for l in [l1, l2]:#,l2,l3]:
+    l3 = 1e-1
+    for l in [l3]:#1, l2]:#,l2,l3]:
         predictions = Inversion.fit(alpha = l, xerr = err) 
         plot_l_curve(Inversion,err,molecule_name,savepath, l)
  
@@ -611,21 +623,59 @@ flux_mean, flux_err = Inversion.get_flux()#Inversion.get_GFED_flux()
 if non_equal_region_size == True: 
     print('per region')
     err = calc_errors_per_region(flux_err, area_bioreg)
-    err = err*10**19
+    err = err*10**13*0.6 # scale such that mean**2 is equal to xprior_mean**2 - 100% Fehler 
     print('maximum error value: '+str(err.max()))
 else: 
     print('not per region')
     err = Inversion.get_land_ocean_error(1/100000)
     print('maximum error value: '+str(err.max()))
 print('Initlaizing done')
+#print(err.mean())
+predictions = Inversion.fit(alpha = 1e-1, xerr = err) 
+#print(predictions.mean())
+#print(Inversion.reg.y.mean())
+#print(Inversion.reg.y.std())
+print(Inversion.reg.x_prior.mean())
+#print((Inversion.reg.x_prior.mean())**2)
+#print(Inversion.reg.x_prior.std())
+#print(Inversion.reg.x_covariance.mean())
+#print(Inversion.reg.x_covariance.std())
+#print(Inversion.reg.y_covariance.mean())
+#print(Inversion.reg.y_covariance.std())
+#print(Inversion.flux_errs.mean())
+#print(Inversion.flux_errs_flat.mean())
+print('predictions')
+print(Inversion.predictions_flat.mean())
+print(Inversion.predictions_flat)
+print(err.values.flatten().mean())
+xerr = err
+xerr = xerr.stack(new=[Inversion.time_coord, *Inversion.spatial_valriables]).values  
+
+print('xerr')
+print(xerr)
+print(xerr.mean())
+print('err')
+print(err.values.flatten())
+print('prior')
+print(Inversion.reg.x_prior)
+
+print('calculations')
+print((((Inversion.reg.x_prior-Inversion.predictions_flat)/xerr)**2))
+print((((Inversion.reg.x_prior-Inversion.predictions_flat)/xerr)**2).mean())
+print((((Inversion.reg.x_prior-Inversion.predictions_flat)/xerr)**2).std())
+print((((Inversion.reg.y - Inversion.reg.K@Inversion.reg.x_prior)/Inversion.concentration_errs)**2).mean())
+
+
+
+
 
 
 ########## do something else you might want to delete later #########
-class_num = plot_input_mask(savepath,mask)
+#class_num = plot_input_mask(savepath,mask)
 
 ########### do_everything ##################
 #do_everything(savepath, Inversion, 'CO',mask, 1, 1, 6, err)
-#do_everything(savepath, Inversion,'CO',mask, 48, 52, 6, err)
+do_everything(savepath, Inversion,'CO',mask, 48, 52, 6, err)
 
 ########### emission factors ################
 '''
