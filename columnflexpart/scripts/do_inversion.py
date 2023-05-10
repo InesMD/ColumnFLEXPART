@@ -116,7 +116,7 @@ def plot_l_curve(Inversion,err, molecule_name, savepath, alpha):
     #                                                5e-7,1e-6,2.5e-6,5e-6,1e-5,2.5e-5,5e-5,1e-4,2.5e-4,5e-4,1e-3,2.5e-3,4.32e-3,1e-2,2.5e-2,5e-2,1e-1,1.5e-1,5e-1,1], xerr = err)
     #inv_result = Inversion.compute_l_curve(alpha = [1e-17,5e-17,1e-16,5e-16,1e-15,5e-15,1e-14, 5e-14,1e-13, 5e-13, 1e-12, 5e-12,1e-11,5e-11,1e-10,5e-10,1e-9,4e-9,1e-8,2.5e-8,5e-8,1e-7,2e-7,5e-7,1e-6,2.5e-6,5e-6,1e-5,2.5e-5,5e-5,1e-4,2.5e-4,5e-4,1e-3,2.5e-3,4.32e-3,1e-2,2.5e-2,5e-2,1e-1,1.5e-1,5e-1,1], xerr = err)
     print('Plotting')
-    plt.figure()
+    plt.figure(figsize=(10,8))
     print(inv_result)
     #plt.scatter(inv_result["loss_regularization"],inv_result["loss_forward_model"])
     #plt.plot(inv_result["loss_regularization"],inv_result["loss_forward_model"])
@@ -183,7 +183,7 @@ def plot_averaging_kernel(Inversion, molecule_name, alpha, class_num, week_num,s
             plt.scatter(x = 150.8793,y =-34.4061,color="black")
             ax.coastlines()
             #plt.title('CO')# week '+str(week_list[week])+' 2019 ')
-            fig.savefig(savepath+str("{:e}".format(alpha))+'_'+molecule_name+'_ak_spatial_gist_heat_reversed_week'+str(week_list[week])+'_no_ocean.png', bbox_inches = 'tight', dpi = 450)
+            fig.savefig(savepath+str("{:e}".format(alpha))+'_'+molecule_name+'_ak_spatial_week'+str(week_list[week])+'_no_ocean.png', bbox_inches = 'tight', dpi = 450)
         #ak_xr = xr.DataArray(data = ak_sum[class_num:2*class_num].diagonal()[1:], dims = ['bioclass', 'week'], coords=dict(bioclass= list(np.arange(1,class_num)), week = 1))
         #ak_xr = xr.DataArray(data = ak_sum[2*class_num:3*class_num].diagonal()[1:], dims = ['bioclass', 'week'], coords=dict(bioclass= list(np.arange(1,class_num)), week = 1))
         #ak_xr = xr.DataArray(data = ak_sum[0:class_num].diagonal()[1:], dims = ['bioclass', 'week'], coords=dict(bioclass= list(np.arange(1,class_num)), week = 1))
@@ -194,10 +194,10 @@ def plot_averaging_kernel(Inversion, molecule_name, alpha, class_num, week_num,s
         plt.savefig(savepath+str("{:e}".format(alpha))+'_'+molecule_name+'_ak_final_2d.png')
  
 
-def find_two_optimal_lambdas(Inversion, range, stop):
-    l = optimal_lambda(Inversion,range, stop)
+def find_two_optimal_lambdas(Inversion, range, stop, xerr):
+    l = optimal_lambda(Inversion,range, stop, xerr)
     print('Optimal lambda 1: '+str(l))
-    l2 = optimal_lambda(Inversion,[l, range[1]], stop)
+    l2 = optimal_lambda(Inversion,[l, range[1]], stop, xerr)
     print('Optimal lambda 2: '+str(l2))
     return l, l2
 
@@ -234,7 +234,7 @@ def plot_spatial_flux_results_or_diff_to_prior(savepath,  Inversion,molecule_nam
             plt.scatter(x = 150.8793,y =-34.4061,color="black")
             ax.coastlines()
             #plt.title('Week '+str(week))
-            plt.savefig(savepath+str("{:e}".format(alpha))+'_'+molecule_name+'_err_per_reg_Diff_to_prior_week_'+str(week)+'_xerr.png', bbox_inches = 'tight')
+            plt.savefig(savepath+str("{:e}".format(alpha))+'_'+molecule_name+'Diff_to_prior_week_'+str(week)+'.png', bbox_inches = 'tight')
         else: 
             spatial_result = (spatial_result*factor)
             #spatial_result = spatial_result.where(spatial_result.values>0.5)
@@ -244,7 +244,7 @@ def plot_spatial_flux_results_or_diff_to_prior(savepath,  Inversion,molecule_nam
             plt.scatter(x = 150.8793,y =-34.4061,color="black")
             ax.coastlines()
             #plt.title('Week '+str(week))
-            plt.savefig(savepath+str("{:e}".format(alpha))+'_err_per_reg_Spatial_results_week_'+str(week)+'_xerr.png', bbox_inches = 'tight', dpi = 450)
+            plt.savefig(savepath+str("{:e}".format(alpha))+'_Spatial_results_week_'+str(week)+'.png', bbox_inches = 'tight', dpi = 450)
             #spatial_result.to_netcdf(path =savepath+str("{:e}".format(alpha))+'_'+molecule_name+'_spatial_results_week_'+str(week)+'.nc')
     #total_spatial_result.to_netcdf(path =savepath+'spatial_results_week_'+str(week_min)+'_'+str(week_max)+'.pkl')
 
@@ -309,7 +309,7 @@ def calc_concentrations(Inversion, molecule_name,alpha, savepath):
     ax2.grid(axis='x')
     #ax.set_title('CO', fontsize = 30)
     plt.subplots_adjust(hspace=0)
-    plt.savefig(savepath+str("{:e}".format(alpha))+'_'+molecule_name+'_ylabel_dist_concentrations_results_only_12.png', dpi = 300, bbox_inches = 'tight')
+    plt.savefig(savepath+str("{:e}".format(alpha))+'_'+molecule_name+'_concentrations_results.png', dpi = 300, bbox_inches = 'tight')
 
     return
 
@@ -420,7 +420,7 @@ def plot_weekly_concentrations(Inversion, molecule_name,alpha, savepath):
 
     return
 
-def calc_errors_per_region(flux_err, area_bioreg): 
+def calc_errors_per_region(flux_mean, area_bioreg): 
     #flux_mean, flux_err = Inversion.get_flux()
     #ak_based2
     #area_bioreg = np.array([8.956336e+13, 5.521217e+10,2.585615e+11,9.965343e+10, 1.031680e+11, 6.341896e+10, 8.597746e+10, 
@@ -429,21 +429,80 @@ def calc_errors_per_region(flux_err, area_bioreg):
     #area_bioreg = np.array([8.956336e+13, 5.521217e+10,2.585615e+11,9.965343e+10, 1.031680e+11, 6.341896e+10, 1.075758e+11, 
     #                                                2.605820e+11,3.400408e+11, 6.450627e+12 ])
 
-    flux_err_mean = np.zeros(len(flux_err.bioclass.values))
-    for j in range(len(flux_err.bioclass.values)): 
-        flux_err_mean[j] = flux_err[j,:].mean().values
+    ######################## with Christophers flux_err given in this function instead of flux_mean 
+    #flux_err_mean = np.zeros(len(flux_err.bioclass.values))
+    #for j in range(len(flux_err.bioclass.values)): 
+    #    flux_err_mean[j] = flux_err[j,:].mean().values
 
+    '''
     area_bioreg[0] = area_bioreg[0]*10000000#0000000 # make error for Ocean smaller
     res = flux_err_mean * (1/area_bioreg)
     res_scaled = np.zeros((len(flux_err.bioclass.values), len(flux_err.week.values)))
     for i in range(len(flux_err.week.values)):
-        res_scaled[:,i] = res
-    
-    err_scaled = xr.DataArray(data=res_scaled, coords=dict({ 'bioclass': ('bioclass', [0,1,2,3,4,5,6]),
-                                                                  'week': ('week', [1,48,49,50,51,52])}) )
+        res_scaled[:,i] = res 
+    err_scaled = xr.DataArray(data=res_scaled, coords=dict({ 'bioclass': ('bioclass',flux_err.bioclass.values),# [0,1,2,3,4,5,6]),
+                                                                  'week': ('week',flux_err.week.values)}))# [1,48,49,50,51,52])}) )
     # set for every week the same error, because Christopher did it 
+    #scale later with factor to match mean value 
+    '''
+    ############ exactly the same code than before but with flux_mean instead of flux_err:
+    #flux_err_mean = np.zeros(len(flux_mean.bioclass.values))
+    #for j in range(len(flux_mean.bioclass.values)): 
+    #    flux_err_mean[j] = flux_mean[j,:].mean().values#
 
+
+    #area_bioreg[0] = area_bioreg[0]*10000000#0000000 # make error for Ocean smaller
+    #res = flux_err_mean * (1/area_bioreg)
+    #res_scaled = np.zeros((len(flux_mean.bioclass.values), len(flux_mean.week.values)))
+    #for i in range(len(flux_mean.week.values)):
+    #    res_scaled[:,i] = res 
+    #err_scaled = xr.DataArray(data=res_scaled, coords=dict({ 'bioclass': ('bioclass',flux_mean.bioclass.values),# [0,1,2,3,4,5,6]),
+    #                                                              'week': ('week',flux_mean.week.values)}))# [1,48,49,50,51,52])}) )
+
+    #################flux_mean, mean over bioclass: 
+    #area_bioreg[0] = area_bioreg[0]*10000000
+    #err_scaled = np.zeros((len(flux_mean.bioclass.values), len(flux_mean.week.values)))
+    #print(flux_mean)
+    #for w in range(len(flux_mean.week.values)):
+    #    mean_weekly_flux = flux_mean[1:,w].mean().values
+    #    print(mean_weekly_flux)
+    #    mean_spatial_weekly_flux = np.ones(len(flux_mean.bioclass.values))*mean_weekly_flux
+    #    err_scaled[:,w] = mean_spatial_weekly_flux/area_bioreg
+    #print(err_scaled)
+    #factor = flux_mean[1:].mean()/err_scaled[1:].mean()
+    #print(factor)
+    #print(err_scaled)
+    #err_scaled = err_scaled*factor.values
+    #print(err_scaled[1:].mean())
+    #print(flux_mean[1:].mean())
+
+
+
+
+    ################## flux_mean area scaled: 
+    
+    area_bioreg[0] = area_bioreg[0]*10000000
+    err_scaled = np.zeros((len(flux_mean.bioclass.values), len(flux_mean.week.values)))
+    print(flux_mean)
+    for w in range(len(flux_mean.week.values)):
+        err_scaled[:,w] = flux_mean[:,w]/area_bioreg
+    print(err_scaled)
+    factor = flux_mean[1:].mean()/err_scaled[1:].mean()
+    print(factor)
+    print(err_scaled)
+    err_scaled = err_scaled*factor.values
+    print(err_scaled[1:].mean())
+    print(flux_mean[1:].mean())
+    
+    #################################
+    #area_array = 1/area_bioreg
+    #print(area_array)
+    #M = np.dot(weekly_mean_flux_per_bioregion, area_array)
+    #print(M)
+    err_scaled = xr.DataArray(data=err_scaled, coords=dict({ 'bioclass': ('bioclass',flux_mean.bioclass.values),# [0,1,2,3,4,5,6]),
+                                                                  'week': ('week',flux_mean.week.values)}))
     return err_scaled
+
 
 def calc_emission_factors(savepath,Inversion, predictions, datapathCO, datapathCO2, alpha, week_min, week_max): 
     means = []
@@ -584,7 +643,8 @@ def do_everything(savepath, Inversion, molecule_name, mask_datapath_and_name, we
                   err):
     class_num = plot_input_mask(savepath,mask_datapath_and_name)
     plot_prior_spatially(Inversion,molecule_name,week_min, week_max, savepath)
-    l1, l2 = find_two_optimal_lambdas(Inversion,[1e-14,1], 1e-15)# 1e-8
+    l1, l2 = find_two_optimal_lambdas(Inversion,[1e-7,10], 1e-14, err)# 1e-8
+    #print(l1)
     l3 = 1e-1
     for l in [l3]:#1, l2]:#,l2,l3]:
         predictions = Inversion.fit(alpha = l, xerr = err) 
@@ -603,7 +663,7 @@ def do_everything(savepath, Inversion, molecule_name, mask_datapath_and_name, we
         plot_weekly_concentrations(Inversion,'CO',l, savepath)
 
 
-savepath = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/Images_CO/Ecosystems/'#Setup_AK_based2/'
+savepath = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/Images_CO/Ecosystems/flux_mean_100_like_flux_err/'#Setup_AK_based2/'
 mask = "/home/b/b382105/ColumnFLEXPART/resources/bioclass_mask1.nc"
 non_equal_region_size = True
 area_bioreg = np.array([8.955129e+13, 5.576214e+11,4.387605e+12,1.708492e+12,4.420674e+11,2.976484e+11,3.358748e+11])
@@ -620,31 +680,51 @@ Inversion = InversionBioclassCO(
 )
 
 flux_mean, flux_err = Inversion.get_flux()#Inversion.get_GFED_flux()
+
+
 if non_equal_region_size == True: 
     print('per region')
-    err = calc_errors_per_region(flux_err, area_bioreg)
-    err = err*10**13*0.6 # scale such that mean**2 is equal to xprior_mean**2 - 100% Fehler 
+    err = calc_errors_per_region(flux_mean, area_bioreg)
+    err = err#*10**12*0.4      #*10**13*0.297#-50% err, *10**13*0.893#-150% err ; *10**13*0.6 - 100% err # scale such that xerr_mean**2 is equal to xprior_mean**2 
     print('maximum error value: '+str(err.max()))
 else: 
     print('not per region')
     err = Inversion.get_land_ocean_error(1/100000)
     print('maximum error value: '+str(err.max()))
 print('Initlaizing done')
+print(err)
 #print(err.mean())
+
+print(flux_err)
+
+#plt.fill_between(flux_mean['bioclass'].values,(flux_mean[:,0].values+flux_err[:,0].values)*10**6*12 ,(flux_mean[:,0].values-flux_err[:,0].values)*10**6*12 , label = 'std', alpha = 0.5 )
+plt.plot(flux_err['bioclass'].values,flux_err[:,0].values*10**6*12 , label = 'std' )
+plt.plot(err['bioclass'].values, err[:,0].values*10**6*12, label = 'err: mean area scaled')
+plt.plot(flux_err['bioclass'].values,flux_mean[:,0].values*10**6*12 , label = 'mean' )
+plt.xlabel('bioclasses')
+plt.ylabel('prior flux mean and std [$\mu$gC m$^{-2}$s$^{-1}$]')
+plt.legend()
+plt.savefig(savepath+'flux_mean_and_flux_err.png')
+print(flux_mean)
+
+
 predictions = Inversion.fit(alpha = 1e-1, xerr = err) 
 #print(predictions.mean())
 #print(Inversion.reg.y.mean())
 #print(Inversion.reg.y.std())
-print(Inversion.reg.x_prior.mean())
+
+#print(flux_mean.mean()**2)
+print((Inversion.reg.x_prior.mean())**2)
 #print((Inversion.reg.x_prior.mean())**2)
 #print(Inversion.reg.x_prior.std())
-#print(Inversion.reg.x_covariance.mean())
+print(Inversion.reg.x_covariance.mean())
 #print(Inversion.reg.x_covariance.std())
 #print(Inversion.reg.y_covariance.mean())
 #print(Inversion.reg.y_covariance.std())
 #print(Inversion.flux_errs.mean())
 #print(Inversion.flux_errs_flat.mean())
 print('predictions')
+'''
 print(Inversion.predictions_flat.mean())
 print(Inversion.predictions_flat)
 print(err.values.flatten().mean())
@@ -665,7 +745,7 @@ print((((Inversion.reg.x_prior-Inversion.predictions_flat)/xerr)**2).mean())
 print((((Inversion.reg.x_prior-Inversion.predictions_flat)/xerr)**2).std())
 print((((Inversion.reg.y - Inversion.reg.K@Inversion.reg.x_prior)/Inversion.concentration_errs)**2).mean())
 
-
+'''
 
 
 
@@ -675,7 +755,7 @@ print((((Inversion.reg.y - Inversion.reg.K@Inversion.reg.x_prior)/Inversion.conc
 
 ########### do_everything ##################
 #do_everything(savepath, Inversion, 'CO',mask, 1, 1, 6, err)
-do_everything(savepath, Inversion,'CO',mask, 48, 52, 6, err)
+#do_everything(savepath, Inversion,'CO',mask, 48, 52, 6, err)
 
 ########### emission factors ################
 '''
