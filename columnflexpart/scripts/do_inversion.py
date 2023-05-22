@@ -91,8 +91,7 @@ def plot_input_mask(savepath,datapath_and_name, selection= None):
         print('Region labels: '+str(set(ds.bioclass.values.flatten())))
         print('Number of regions: '+str(len(set(ds.bioclass.values.flatten()))))
         plt.savefig(savepath+'bioclasses_on_eco.png')
-    print('class num: ')
-    print(len(set(ds.bioclass.values.flatten())))
+
     return len(set(ds.bioclass.values.flatten()))
     
 
@@ -171,7 +170,6 @@ def multiply_prior_with_1_minus_averaging_kernel(Inversion, week_min, week_max, 
     factor = 10**6*12 
     flux_mean = Inversion.flux*factor
     for week_idx, week in enumerate(range(week_min, week_max+1)):
-        print(week_idx)
         spatial_flux = Inversion.map_on_grid(flux_mean[:,flux_mean['week']==week])
 
         #ak per week 
@@ -184,12 +182,7 @@ def multiply_prior_with_1_minus_averaging_kernel(Inversion, week_min, week_max, 
         ones_matrix_shape_spatial_ak = Inversion.map_on_grid_without_time_coord(ones_matrix_with_shape_of_ak_xr, class_num)
 
         #multiplication
-        print('1-AK')
-        print(ones_matrix_with_shape_of_ak_xr-ak_spatial)
-        print((ones_matrix_with_shape_of_ak_xr-ak_spatial).max())
-        print((ones_matrix_with_shape_of_ak_xr-ak_spatial).min())
         prior_times_ak = spatial_flux*(ones_matrix_shape_spatial_ak-ak_spatial) 
-        print(prior_times_ak)
         #plotting
         fig = plt.figure()
         ax = plt.axes(projection=ccrs.PlateCarree())  
@@ -266,7 +259,6 @@ def find_two_optimal_lambdas(Inversion, range, stop, xerr):
 def plot_spatial_flux_results_or_diff_to_prior(savepath,  Inversion,molecule_name, week_min, week_max,alpha,vminv=None, diff =False):
     factor = 12*10**6
     #total_spatial_result = xr.Dataset()
-    print(alpha)
     plt.rcParams.update({'font.size':15})   
     for week in range(week_min,week_max+1): 
         plt.figure()
@@ -528,26 +520,15 @@ def calc_flux_mean_err_per_region(flux_mean, area_bioreg, mean_flux = None):
 
     area_bioreg[0] = area_bioreg[0]*10000000
     err_scaled = np.zeros((len(flux_mean.bioclass.values), len(flux_mean.week.values)))
-    print(flux_mean)
     for w in range(len(flux_mean.week.values)):
         err_scaled[:,w] = flux_mean[:,w]/area_bioreg
-    print(err_scaled)
 
     if mean_flux is None: 
         factor = flux_mean[1:].mean()/err_scaled[1:].mean()
-        print(factor)
-        print(err_scaled)
         err_scaled = err_scaled*factor.values
-        print(err_scaled[1:].mean())
-        print(flux_mean[1:].mean())
     else: 
         factor = mean_flux[1:].mean()/err_scaled[1:].mean()
-        print(factor)
-        print(err_scaled)
         err_scaled = err_scaled*factor.values
-        print(err_scaled[1:].mean())
-        print(flux_mean[1:].mean())
-    
     #################################
     #area_array = 1/area_bioreg
     #print(area_array)
@@ -563,11 +544,8 @@ def calc_emission_factors(savepath,Inversion, predictions, datapathCO, datapathC
     std = []
     #savepath = savepath+str(alpha)+'/'
     fire_pred_co = predictions.where(predictions.bioclass>0,drop=True)
-    print(fire_pred_co)
     AU_mask = Inversion.map_on_grid(fire_pred_co[fire_pred_co['week']==50])
-    print(AU_mask)
     AU_mask.values = np.ones(shape = AU_mask.shape)
-    print(AU_mask)
     for wnum, week in enumerate([1,48,49,50,51,52]): 
         #ds_co = xr.open_dataset(datapathCO+'{:e}'.format(alpha)+'_CO_less_AK_1e-2_selected_results_week_'+str(week)+'.nc')
         #ds_co2 = xr.open_dataset(datapathCO2+'{:e}'.format(alpha)+'_CO2_less_AK_1e-2_selected_results_week_'+str(week)+'.nc')
@@ -639,7 +617,6 @@ def select_region_bioclass_based(predictions_co):#, predictions_co2):
                # 666,667,668,669,670,
                # 675,676,677,678,679,680,
                # 684,685,686,687,688,689,690,691,692]
-    print(predictions_co)
     predictions_co.name = 'variable'
     fire_pred_co = predictions_co.where(predictions_co.bioclass==fire_reg[0], drop = True)
     for i in fire_reg: 
@@ -649,7 +626,6 @@ def select_region_bioclass_based(predictions_co):#, predictions_co2):
     #for i in fire_reg: 
     #    pred_coi = predictions_co2.where(predictions_co2.bioclass==i, drop = True)
     #    fire_pred_co2 = xr.merge([pred_coi,fire_pred_co2])
-    print(fire_pred_co)
     
     return  fire_pred_co.variable
 
@@ -682,7 +658,6 @@ def create_mask_ak_and_co_based(alpha, datapathCO, datapathCO2 , week, wnum):
     ds_co = xr.open_dataset(datapathCO+'test/'+str("{:e}".format(alpha))+'_CO_spatial_results_week_'+str(week)+'.nc')
     ds_co2 = xr.open_dataset(datapathCO2+'{:e}'.format(alpha)+'_CO2_spatial_results_week_'+str(week)+'.nc')
     ds_co_mask = xr.where((akco>1e-3)&(akco2>1e-3)&(ds_co.__xarray_dataarray_variable__.values>0.5),1, False)
-    print(ds_co_mask)
     ds_co_mask.to_netcdf(datapathCO+'test/mask_co_co2_for_GFED_GFAS_week_'+str(week)+'.nc')
     #ds_co = ds_co.where(ds_co.__xarray_dataarray_variable__.values>0.5)
     #ds_co = ds_co.where((akco>1e-3)&(akco2>1e-3)).fillna(0)#&(akco2>1e-3))
@@ -726,13 +701,13 @@ def calc_errors_flat_area_weighted_scaled_to_mean_flux(flux_mean, area_bioreg):
         area_weighted_errors = flat_errors[:,w]/area_bioreg
     
         scaling_factor = flux_mean[1:, w].mean()/area_weighted_errors[1:].mean()
-        print(flux_mean[1:,w].mean())
-        print(scaling_factor.values)
+        #print(flux_mean[1:,w].mean())
+        #print(scaling_factor.values)
         final_error[:,w] = scaling_factor.values*area_weighted_errors
     #print(final_error)
     err_scaled = xr.DataArray(data=final_error, coords=dict({ 'bioclass': ('bioclass',flux_mean.bioclass.values),# [0,1,2,3,4,5,6]),
                                                                 'week': ('week',flux_mean.week.values)}))
-    print(err_scaled)
+    #print(err_scaled)
     return err_scaled
     
 
