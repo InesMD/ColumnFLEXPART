@@ -955,14 +955,19 @@ class FlexDatasetCO:
             #    self._ct_dummy = ct_dummy
 
             file_list = []
-            for year in range(2019, 2021): 
+            for year in range(2018, 2021): 
+                if year == 2018: 
+                    for month in range(11,13):
+                        file_list.append(
+                            os.path.join(self._ct_dir, 'co_ml_' + str(year) + '_'+str(month).zfill(2)+'_1x1_3degbuffer.nc')
+                        )
                 if year == 2019: 
-                    for month in range(9,13): 
+                    for month in range(7,13): 
                         file_list.append(
                             os.path.join(self._ct_dir, 'co_ml_' + str(year) + '_'+str(month).zfill(2)+'_1x1_3degbuffer.nc')
                         )
                 else:
-                    for month in range(1,3): 
+                    for month in range(1,4): 
                         file_list.append(
                             os.path.join(self._ct_dir, 'co_ml_' + str(year) + '_'+str(month).zfill(2)+'_1x1_3degbuffer.nc')
                         )
