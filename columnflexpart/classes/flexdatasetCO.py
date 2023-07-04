@@ -955,18 +955,19 @@ class FlexDatasetCO:
             #    self._ct_dummy = ct_dummy
 
             file_list = []
+            file_list_2018 = []
             for year in range(2018, 2021): 
                 if year == 2018: 
                     for month in range(11,13):
                         file_list.append(
                             os.path.join(self._ct_dir, 'co_ml_' + str(year) + '_'+str(month).zfill(2)+'_1x1_3degbuffer.nc')
                         )
-                if year == 2019: 
+                elif year == 2019: 
                     for month in range(7,13): 
                         file_list.append(
                             os.path.join(self._ct_dir, 'co_ml_' + str(year) + '_'+str(month).zfill(2)+'_1x1_3degbuffer.nc')
                         )
-                else:
+                elif year == 2020:
                     for month in range(1,4): 
                         file_list.append(
                             os.path.join(self._ct_dir, 'co_ml_' + str(year) + '_'+str(month).zfill(2)+'_1x1_3degbuffer.nc')
@@ -975,6 +976,23 @@ class FlexDatasetCO:
             level_attrbs = pd.read_csv(self._ct_dir+'ml_level_attrs.csv')
             pressure = [float(x)*10**2 for x in np.array(level_attrbs['pf [hPa]'][1:])] # in Pa
             cams_data = cams_data.assign_coords(dict({'pressure':('level', pressure)} ))
+            #print(cams_data)
+
+            #cams_data_2018 = xr.open_mfdataset(file_list_2018, combine="by_coords")
+            #cams_data_2018 = cams_data_2018.reset_index(['level'], drop = True)
+            #print(cams_data_2018.co[0:3,15:17,1,1].values)
+            #print(cams_data_2018)
+            #cams_data_2018 = cams_data_2018.assign_coords(dict({'level':('level',[cams_data_2018.level[0:15],cams_data_2018.level[16:] ])}))
+            #print(cams_data_2018.level)
+            #level_attrbs = pd.read_csv(self._ct_dir+'ml_level_attrs.csv')
+            #print('here')
+            #pressure = [float(x)*10**2 for x in np.array(level_attrbs['pf [hPa]'][1:])] # in Pa
+            #print('here')
+            #cams_data_2018 = cams_data_2018.assign_coords(dict({'pressure':('level', pressure)} ))
+            #print('before merge')
+            #cams_data = xr.merge([cams_data, cams_data_2018])
+            #print(cams_data)
+
             # psurfec = 1013.35hPa
             # pf = full level pressure (at middle of level)
             # ph = half level pressure (at bottom of layer)

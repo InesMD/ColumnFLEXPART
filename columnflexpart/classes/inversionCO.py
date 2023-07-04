@@ -36,7 +36,8 @@ class InversionCO():
         time_unit: Timeunit = "week",
         boundary: Boundary = None,
         concentration_key: Concentrationkey = "background_inter",
-        data_outside_month: bool = False,
+        data_outside_month: bool = False
+      
     ):
         """Calculates inversion of footprints and expected concentrations and offers plotting possibilities.
 
@@ -75,8 +76,7 @@ class InversionCO():
 
         self.time_coord, self.isocalendar = self.get_time_coord(self.time_unit)
         self.footprints, self.concentrations, self.concentration_errs = self.get_footprint_and_measurement(self.concentration_key)
-        self.flux, self.flux_errs = self.get_GFED_flux()
-
+        self.flux, self.flux_errs = self.get_flux() # adjust to get GFED flux !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         self.coords = self.footprints.stack(new=[self.time_coord, *self.spatial_valriables]).new
 
         self.footprints_flat = self.footprints.stack(new=[self.time_coord, *self.spatial_valriables])
@@ -224,7 +224,7 @@ class InversionCO():
         '''
         total_flux = xr.DataArray()
         first_flux = True
-        for year in range(2019,2021):
+        for year in range(2019,2020):
             cams_flux_bio = xr.DataArray()
             cams_flux_ant = xr.Dataset()
             for sector in ['AIR_v1.1', 'BIO_v3.1', 'ANT_v4.2']:
@@ -252,11 +252,11 @@ class InversionCO():
                     flux_bio_part = flux_bio_part.assign_coords({'year': ('time', [year*i for i in np.ones(12)])})
                     flux_bio_part = flux_bio_part.assign_coords({'MonthDate': ('time', [datetime(year=year, month= i, day = 1) for i in np.arange(1,13)])})
                     cams_flux_bio = flux_bio_part                
-            print(flux_bio_part.values.max())
-            print(flux_ant_part['sum'].values.max())
+            #print(flux_bio_part.values.max())
+            #print(flux_ant_part['sum'].values.max())
             total_flux_yr = (cams_flux_ant['sum'] + cams_flux_bio)/0.02801 # from kg/m^2/s to molCO/m^2/s 
-            print(total_flux_yr.values.max())
-            print((cams_flux_ant['sum'] + cams_flux_bio).values.max())
+            #print(total_flux_yr.values.max())
+            #print((cams_flux_ant['sum'] + cams_flux_bio).values.max())
             if first_flux:
                     first_flux = False
                     total_flux = total_flux_yr
@@ -301,7 +301,12 @@ class InversionCO():
             tuple[xr.DataArray,xr.DataArray]: fluxes and errors
         """   
         datapath = '/work/bb1170/RUN/b382105/Dataframes/GFEDs/'
-        total_flux = xr.open_dataset(datapath+'GFED_2019_2020_regr1x1_date.nc')
+        gdf = pd.read_pickle(datapath+'DF_regridded_CO_AU20192020.pkl')
+        gdf = gdf[((gdf['Year']==2019)&(gdf['Month']==12))|((gdf['Year']==2020)&(gdf['Month']==1))]
+        gdf = gdf[(gdf['Longround']>110)&(gdf['Lat']<-10)&(gdf['Lat']>-50)&(gdf['Longround']<155)]
+        #print(gdf)
+        total_flux = gdf.set_index(['Date', 'Lat','Longround']).to_xarray()   
+        #total_flux = xr.open_dataset(datapath+'GFED_2019_2020_regr1x1_date.nc')
         #f = self.coarsen_data(total_flux, "mean", self.time_coarse)
         #print(f)
         #print(total_flux.emission.values)
@@ -314,7 +319,7 @@ class InversionCO():
         #gdf = gdf.drop(columns= ['index_x', 'total_emission', 'index_y', 'geometry', 'Year', 'Month'])
         #total_flux = gdf.set_index(['Date', 'Lat', 'Long']).to_xarray()
         #print(total_flux.emission.max())
-        total_flux = total_flux.rename({'Date': 'time',  'emission': 'total_flux'})
+        total_flux = total_flux.rename({'Date': 'time',  'emission': 'total_flux', 'Lat':'latitude', 'Longround': 'longitude'})
 
         # create new flux dataset with value assigned to every day in range date start and date stop 
         dates = [pd.to_datetime(self.start)]
@@ -325,17 +330,18 @@ class InversionCO():
         fluxes = xr.DataArray(data = np.zeros((len(dates), len(total_flux.latitude.values), len(total_flux.longitude.values))), dims = ['time', 'latitude', 'longitude'])
         count = 0
         for i,dt in enumerate(dates): 
-            for m in range(len(total_flux.time.values)): # of moths 
+            for midx, m in enumerate([12,1]):
+            #for m in range(len(total_flux.time.values)): # of moths 
                 #print(pd.to_datetime(total_flux.time.values[m]))
-                if dt.month == pd.to_datetime(total_flux.time.values[m]).month: 
+                if dt.month == m:#pd.to_datetime(total_flux.time.values[m]).month: 
                 #    if bol == True: 
-                    fluxes[i,:,:] =  total_flux.total_flux[m,:,:]/0.02801/(30*24*60*60)#/0.02801 
+                    fluxes[i,:,:] =  total_flux.total_flux[midx,:,:]/28.01/(30*24*60*60)#/0.02801 
      
         fluxes = fluxes.assign_coords({'time': ('time', dates), 'latitude': ('latitude', total_flux.latitude.values), 'longitude': ('longitude', total_flux.longitude.values)})
-        print(fluxes.longitude.values)
+        #print(fluxes.longitude.values)
         fluxes = select_extent(fluxes, *self.boundary)
         flux_mean = self.coarsen_data(fluxes, "mean", self.time_coarse)
-        print(flux_mean)
+        #print(flux_mean)
         flux_err = self.get_flux_err(fluxes, flux_mean)
         # Error of mean calculation
         return flux_mean, flux_err
@@ -396,6 +402,8 @@ class InversionCO():
                 else:
                     xerr.values
             flux_errs = xerr
+            #self.flux_errs = flux_errs
+            #self.flux_errs_flat = self.flux_errs.values.flatten()
 
         if not x is None:
             x_prior = x
@@ -409,7 +417,7 @@ class InversionCO():
                 K = self.footprints_flat.values, 
                 x_prior = x_prior, 
                 x_covariance = flux_errs**2, 
-                y_covariance = concentration_errs*1e-9**2, 
+                y_covariance = (concentration_errs*1e-9)**2, 
                 alpha = alpha
             )
         else:
@@ -1054,7 +1062,7 @@ class InversionBioclassCO(InversionCO):
         )
         for bioclass in xarr.bioclass:
             mask = self.bioclass_mask == bioclass
-            print(xarr.where(xarr.bioclass == bioclass, drop=True))
+            #print(xarr.where(xarr.bioclass == bioclass, drop=True))
             mapped_xarr = mapped_xarr + (self.bioclass_mask == bioclass) * xarr.where(xarr.bioclass == bioclass, drop=True)
             mapped_xarr = mapped_xarr.squeeze(drop=True)
         return mapped_xarr
@@ -1078,7 +1086,7 @@ def get_total(inv):
     world = gpd.read_file(gpd.datasets.get_path('naturalearth_lowres'))[["name", "geometry"]].to_crs({'init': 'epsg:3857'})
     area = world[world.name=="Australia"].area
     flux_sum = area*flux_sum
-    print(flux_sum)
+    #print(flux_sum)
     
 
 if __name__ == "__main__":

@@ -31,7 +31,7 @@ if __name__ == '__main__':
     parser.add_argument("measurement_type", type=str, help="Type of measurement TCCON or ACOS")
     parser.add_argument("--boundary", type=float, nargs="+", default=None, help="Boundary to cut out for investigation [left, right, bottom, top]")
     parser.add_argument("--read_only", action="store_true", default=False, help="Flag to only try to read saved values")
-    parser.add_argument("--out_name", type=str, default="predictions.pkl", help="Name for output pickle file (defaults to 'predictions.pkl')")
+    parser.add_argument("--out_name", type=str, default="predictionsCO.pkl", help="Name for output pickle file (defaults to 'predictionsCO.pkl')")
     args = parser.parse_args()
     files = find_nc_files(args.dir)
 

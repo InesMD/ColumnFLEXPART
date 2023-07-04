@@ -125,11 +125,11 @@ class TcconMeasurement(ColumnMeasurement):
         is aimed to be the replacement for load() in measurement.py - for one time point, assume time to be start_time like datetime date 1:00:00 
         '''
 
-        data_mean = pd.read_pickle('/work/bb1170/RUN/b382105/Flexpart/TCCON/preparation/one_hour_runs/TCCON_mean_measurements_sept_to_march.pkl') #zeitlich stärker einschränken? 
+        data_mean = pd.read_pickle('/work/bb1170/RUN/b382105/Flexpart/TCCON/preparation/one_hour_runs/TCCON_mean_measurements_18_11-19_1_and_19_7-20_3.pkl') #zeitlich stärker einschränken? 
         data_mean = data_mean[(data_mean['datetime'][:] == time)] 
         #print(data_mean)
         
-        if np.isnan(data_mean['xco2_ppm'].values[0]): 
+        if np.isnan(data_mean['xco_ppb'].values[0]): 
             raise Exception('No data available for this time')
 
         variables_original = ['prior_Pressure','prior_Height','prior_h2o', 'asza_deg', 'long_deg', 'lat_deg',
@@ -207,7 +207,7 @@ class TcconMeasurement(ColumnMeasurement):
         data = data.rename(xco2_ppm = "xco2", xco2_total_error = "xco2_uncertainty", xco_ppb = 'xco', xco_total_error = 'xco_uncertainty',
                             xch4_ppm = 'xch4', xch4_total_error = 'xch4_uncertainty')
 
-        print(data.squeeze(drop=True))
+        #print(data.squeeze(drop=True))
         return  data.squeeze(drop=True), path, None
 
     def interpolate_to_levels(self, dataarray: xr.DataArray, pressure_key: str, pressure_values: Iterable) -> xr.DataArray:  
@@ -228,7 +228,7 @@ class TcconMeasurement(ColumnMeasurement):
     def add_variables(
         self, 
         dataarray: xr.DataArray, 
-        variables: list[str] = ["prior_Pressure", "ak_co2", "prior_co2"]
+        variables: list[str] = ["prior_Pressure", "ak_co", "prior_co"]
     ) -> xr.Dataset:
         """Creates Dataset from dataarray and dataarrays of mesurements named in variables"""
         tccon_variable_data = [self.data[var].squeeze(drop=True) for var in variables]

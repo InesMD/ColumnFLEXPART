@@ -361,7 +361,15 @@ def country_intersections(gdf, country, crs="EPSG:4326"):
 def load_GFED_data(startdate, enddate):
     datapath = '/work/bb1170/RUN/b382105/Dataframes/GFEDs/'
     savepath = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/Images/Setup_gridded/'
-    gdf = xr.open_dataset(datapath+'GFED_2019_2020_regr1x1_date.nc')
+    gdf = pd.read_pickle(datapath+'DF_regridded_CO_AU20192020.pkl')
+    gdf = gdf[((gdf['Year']==2019)&(gdf['Month']==12))|((gdf['Year']==2020)&(gdf['Month']==1))]
+    gdf = gdf[(gdf['Longround']>110)&(gdf['Lat']<-10)&(gdf['Lat']>-50)&(gdf['Longround']<155)]
+    print(gdf.emission.max())
+    gdf['emission'] = gdf['emission'][:]/28.01/(30.5*24*60*60)
+    print(gdf.emission.max())
+    #print(gdf)
+    gdf = gdf.set_index(['Date', 'Lat','Longround']).to_xarray()   
+    gdf = gdf.rename({ 'emission': 'total_flux', 'Date': 'time', 'Lat':'latitude', 'Longround': 'longitude'})
     #print(gdf)
     #gdf = gdf.assign_coords({'Date': ('Date', [datetime(year = y, month = m, day = 15) for (y,m) in zip(gdf['Year'][:], gdf['Month'][:])])})
     #gdf = pd.read_pickle(datapath+'GDF_AU_CO_cut_to_AU_2019_2020.pkl')#emission in kgCO/m^2/month
@@ -379,22 +387,27 @@ def load_GFED_data(startdate, enddate):
     #          (pd.to_datetime(x).date() <= enddate.date()) for x in gdf['Date'].values)])
     #gdf = gdf.where(pd.to_datetime(x).date() >= startdate.date() for x in gdf['Date'].values)
     #gdf = gdf[(pd.to_datetime(x).date() <= enddate.date() for x in gdf['Date'].values)]
-    
-    dates = [pd.to_datetime(startdate)]
-    date = dates[0]
-    while date < pd.to_datetime(enddate):
-        date += datetim.timedelta(days = 1)
-        dates.append(pd.to_datetime(date))
-    fluxes = xr.DataArray(data = np.zeros((len(dates), len(gdf.latitude.values), len(gdf.longitude.values))), dims = ['time', 'latitude', 'longitude'])
-    count = 0
-    for i,dt in enumerate(dates): 
-        for m in range(len(gdf.Date.values)): # of moths 
-            #print(pd.to_datetime(total_flux.time.values[m]))
-            if dt.month == pd.to_datetime(gdf.Date.values[m]).month: 
+    #print(gdf)
+
+    #dates = [pd.to_datetime(startdate)]
+    #date = dates[0]
+    #while date < pd.to_datetime(enddate):
+    #    date += datetim.timedelta(days = 1)
+    #    dates.append(pd.to_datetime(date))
+    #print('here')
+    #fluxes = xr.DataArray(data = np.zeros((len(dates), len(gdf.Lat.values), len(gdf.Longround.values))), dims = ['time', 'latitude', 'longitude'])
+    #count = 0
+    #for i,dt in enumerate(dates): 
+    #    print('gone here')
+        #print(set(list(pd.to_datetime(gdf.Date.values).month)))
+    #    for midx, m in enumerate([12,1]):#set((gdf.Date.values)): # of moths 
+            #print(m)
+            #print(pd.to_datetime(gdf.Date[m].values).month)
+    #        if dt.month == m:#pd.to_datetime(m).month: 
             #    if bol == True: 
-                fluxes[i,:,:] =  gdf.emission[m,:,:]/0.02801/(30*24*60*60) #/0.02801 
-    
-    fluxes = fluxes.assign_coords({'time': ('time', dates), 'latitude': ('latitude', gdf.latitude.values), 'longitude': ('longitude', gdf.longitude.values)})
+    #            fluxes[i,:,:] =  gdf.emission[midx,:,:]/28.01/(30*24*60*60) #/0.02801 
+    #print(gdf)
+    #fluxes = fluxes.assign_coords({'time': ('time', dates), 'latitude': ('latitude', gdf.Lat.values), 'longitude': ('longitude', gdf.Longround.values)})
     #print(fluxes)
 
 
@@ -407,11 +420,13 @@ def load_GFED_data(startdate, enddate):
     #total_flux = gdf.set_index(['Date','Lat', 'Long']).to_xarray()
     #print(total_flux.emission.max())
     #total_flux = fluxes.rename({ 'emission': 'total_flux'})
-    fluxes.name = 'total_flux'
-    print('renamed')
-    total_flux = fluxes.fillna(0)
+
+    #fluxes.name = 'total_flux'
+    #print('renamed')
+    #total_flux = fluxes.fillna(0)
+
     #print(total_flux)
-    return total_flux
+    return gdf
 
 
 def load_cams_data(
@@ -433,29 +448,38 @@ def load_cams_data(
 
     total_flux = xr.DataArray()
     first_flux = True
-    for year in range(2019,2021):
+    for year in range(2018,2021):
         cams_flux_bio = xr.DataArray()
         cams_flux_ant = xr.Dataset()
         cams_flux_air = xr.Dataset()
         for sector in ['AIR_v1.1', 'BIO_v3.1', 'ANT_v4.2']:
             if sector == 'ANT_v4.2':
                 cams_file = 'CAMS-AU-'+sector+'_carbon-monoxide_'+str(year)+'_sum_regr1x1.nc'
+                #print(cams_file)
                 flux_ant_part = xr.open_mfdataset(
                     cams_path+cams_file,
                     combine="by_coords",
                     chunks="auto",
                     )
+                #print('ANT opened')
                 flux_ant_part = flux_ant_part.assign_coords({'year': ('time', [year*i for i in np.ones(12)])})
                 flux_ant_part = flux_ant_part.assign_coords({'MonthDate': ('time', [datetime(year=year, month= i, day = 1) for i in np.arange(1,13)])})
                 cams_flux_ant = flux_ant_part
 
             elif sector == 'BIO_v3.1': 
-                cams_file = 'CAMS-AU-'+sector+'_carbon-monoxide_2019_regr1x1.nc'            
+                if year != 2018:
+                    cams_file = 'CAMS-AU-'+sector+'_carbon-monoxide_2019_regr1x1.nc'      
+                elif year == 2018: 
+                    cams_file = 'CAMS-GLOB-'+sector+'_carbon-monoxide_2018_regr1x1.nc'  
+                
+                #print(cams_path)
+                #print(cams_file)
                 flux_bio_part = xr.open_mfdataset(
                 cams_path+cams_file,
                 combine="by_coords",
                 chunks="auto",
                 )
+                #print('BIO opened')
                 #datetime_var = []
                 #for h_step in range(8): 
                 #    print(h_step*3)
@@ -473,6 +497,8 @@ def load_cams_data(
                     plt.figure()
                     cams_flux_bio.isel(dict({'time':11})).plot(x='longitude', y = 'latitude')
                     plt.savefig('/work/bb1170/RUN/b382105/Data/CAMS/Fluxes/CAMS_bio_2019.png')
+
+                
               
             
 
@@ -539,37 +565,57 @@ def combine_flux_and_footprint(
     Returns:
         xr.Dataset: Enhancements for each layer
     """
+    #print(flux)
+    #print(flux.time)
+    #print(footprint)
+    print(chunks)
     if chunks is not None:
         footprint = footprint.chunk(chunks=chunks)
         flux = flux.chunk(chunks=chunks)
+    print(flux.values)
     with dask.config.set(**{"array.slicing.split_large_chunks": True}):
         #print(footprint.to_dataset())
-        fp_co = xr.merge([footprint.to_dataset(), flux])#.to_dataset(name = 'total_flux')])
+        #print(flux.to_dataset(name = 'total_flux').total_flux.values.max())
+        fp_co = xr.merge([footprint.to_dataset(), flux.to_dataset(name = 'total_flux')])#.to_dataset(name = 'total_flux')
     # 1/layer height*flux [kg/m²*s]*1/MCO[kg/mol]*fp[m^3*s/kg] * Mair[kg/mol]
     #print(fp_co)
+    #print(fp_co.max())
+    #print(fp_co.total_flux.values.max())
+    flux = flux.drop(['year'])
+    print(footprint.time.values)
+    print(fp_co)
     tot_fp_co = xr.Dataset()
     #for i, time in enumerate(footprint.time.values): 
-    fp_co_part = (
-        1 / 100 * fp_co.total_flux * fp_co.spec001_mr * 0.029*10**9)
-        #  1 / 100 * fp_co.total_flux*0.028 * fp_co.spec001_mr * 0.029) 
+        #print(flux.total_flux * footprint.to_dataset().spec001_mr)
+        #fp_co= (
+        #    1 / 100 * flux * footprint[:,i,:,:] * 0.029*10**9)
+        #print(fp_co_part)
+    fp_co =   1 / 100 * fp_co.total_flux * fp_co.spec001_mr * 0.029*10**9 #*0.028
          # dim : time, latitude, longitude, pointspec: 36
         #print('before to_datetime')
-    #    t = pd.to_datetime(time)
+       # t = pd.to_datetime(time)
         #print('after to datetime')
         #print(fp_co_part)
         #fp_co = fp_co.drop('year')
      #   fp_co_part = fp_co_part.where(fp_co_part.time[pd.to_datetime(fp_co_part.time.values).month== t.month], drop = True )
         #print('after where')
-        ##fp_co = fp_co.assign_coords({'time':('time', [t])})#, 'year': ('time', [t.year])})
+
+       # fp_co = fp_co.assign_coords({'time':('time', [t])})#, 'year': ('time', [t.year])})
+    
         #print('after assign')
-      #  fp_co_part.name = 'CO'
-       # tot_fp_co = xr.merge([tot_fp_co, fp_co_part])
+        #fp_co.name = 'CO'
+        #tot_fp_co = xr.merge([tot_fp_co, fp_co])
+
     # sum over time, latitude and longitude, remaining dim = layer
-    fp_co_part.name = 'CO'
+    #fp_co_part.name = 'CO'
     #print(fp_co_part)
-    tot_fp_co = fp_co_part.to_dataset().sum(dim=["time", "latitude", "longitude"])
+
+    tot_fp_co = fp_co.sum(dim=["time", "latitude", "longitude"])
     tot_fp_co = tot_fp_co.compute()
+    tot_fp_co.name = 'CO'
+    tot_fp_co = tot_fp_co.to_dataset()
     #print('combining done')
+    print(tot_fp_co)
     return tot_fp_co
 
 def calc_enhancement(
@@ -593,38 +639,39 @@ def calc_enhancement(
     Returns:
         np.ndarray: Array of enhancement for each release of FLEXPART run
     """    
-    print('calc enhancement')
     # test the right order of dates
     assert enddate > startdate, "The startdate has to be before the enddate"
 
     # read CT fluxes (dayfiles) and merge into one file
-    #cams_flux = load_cams_data(cams_path, startdate, enddate).compute()
-    startdate_new = datetime(year=startdate.year, month= startdate.month, day = 1)
-    enddate_new = datetime(year=enddate.year, month=enddate.month, day = 30)
-    GFED_flux = load_GFED_data(startdate, enddate).compute()
-    #print(GFED_flux)
+    cams_flux = load_cams_data(cams_path, startdate, enddate).compute()
+    #startdate_new = datetime(year=startdate.year, month= startdate.month, day = 1)
+    #enddate_new = datetime(year=enddate.year, month=enddate.month, day = 30)
+    #GFED_flux = load_GFED_data(startdate, enddate).compute()
+    #print('GFED flux')
+    #print(GFED_flux.time.values[0])
+
 
     # from .interp can be deleted as soon as FP dim fits CTFlux dim, layers repeated???? therfore only first 36
     footprint = get_fp_array(fp_data).compute()
     # selct times of Footprint in fluxes
-    #fp_time_min = datetime(year = footprint.time.min().values.astype('datetime64[Y]').astype(int) + 1970, 
-    #                       month = footprint.time.min().values.astype('datetime64[M]').astype(int) % 12 + 1 , day = 1)
-    #fp_time_max = datetime(year = footprint.time.max().values.astype('datetime64[Y]').astype(int) + 1970, 
-    #                       month = footprint.time.max().values.astype('datetime64[M]').astype(int) % 12 + 1 , day = 1)
+    fp_time_min = datetime(year = footprint.time.min().values.astype('datetime64[Y]').astype(int) + 1970, 
+                           month = footprint.time.min().values.astype('datetime64[M]').astype(int) % 12 + 1 , day = 1).date()
+    fp_time_max = datetime(year = footprint.time.max().values.astype('datetime64[Y]').astype(int) + 1970, 
+                           month = footprint.time.max().values.astype('datetime64[M]').astype(int) % 12 + 1 , day = 1).date()
 
-    #cams_flux = cams_flux.set_index(time="MonthDate")
-    #cams_flux = cams_flux.sel(time=slice(fp_time_min,fp_time_max))
-    #GFED_flux = GFED_flux.sel(time = slice(startdate, enddate_new))
+    cams_flux = cams_flux.set_index(time="MonthDate")
+    cams_flux = cams_flux.sel(time=slice(fp_time_min,fp_time_max))
+    #GFED_flux = GFED_flux.sel(time = slice(fp_time_min, fp_time_max))
     #print(GFED_flux)
     if boundary is not None:
-        #cams_flux = select_extent(cams_flux, *boundary)
-        GFED_flux = select_extent(GFED_flux, *boundary)
+        cams_flux = select_extent(cams_flux, *boundary)
+        #GFED_flux = select_extent(GFED_flux, *boundary)
 
-
+    #print(GFED_flux)
     # OLDVERSION pressure_weights = 1/(p_surf-0.1)*(fp_pressure_layers[0:-1]-fp_pressure_layers[1:])
     # FP_pressure_layers = np.array(range(numLayer,0,-1))*1000/numLayer
-    fp_co = combine_flux_and_footprint(GFED_flux, footprint, chunks=chunks)
-
+    fp_co = combine_flux_and_footprint(cams_flux, footprint, chunks=chunks)
+    #print(fp_co.CO.values.max())
     molefractions = fp_co.CO.values
     return molefractions 
 
