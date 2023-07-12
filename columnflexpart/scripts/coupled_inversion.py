@@ -128,8 +128,8 @@ def get_footprint_and_measurement(path_to_CO2_predictions : str, path_to_CO_pred
     
     return footprints, concentrations, concentration_errs
 
-def get_flux(): # to be wrapped together 
-    #CO2 
+def get_flux_CO2():
+     #CO2 
     flux_files = []
     for date in np.arange(self.min_time.astype("datetime64[D]"), self.stop):
         date_str = str(date).replace("-", "")
@@ -145,8 +145,10 @@ def get_flux(): # to be wrapped together
     flux = select_boundary(flux, self.boundary)
     flux_mean = self.coarsen_data(flux, "mean", self.time_coarse)
     flux_err = self.get_flux_err(flux, flux_mean)
+    return flux_mean, flux_err
 
-    #CO: 
+def get_flux_CO(): 
+#CO: 
     total_flux = xr.DataArray()
     first_flux = True
     for year in range(2019,2020):
@@ -195,7 +197,7 @@ def get_flux(): # to be wrapped together
     dates = [pd.to_datetime(self.start)]
     date = dates[0]
     while date < pd.to_datetime(self.stop):
-        date += datetim.timedelta(days = 1)
+        date += datetime.timedelta(days = 1)
         dates.append(pd.to_datetime(date))
     fluxes = xr.DataArray(data = np.zeros((len(dates), len(flux.latitude.values), len(flux.longitude.values))), dims = ['time', 'latitude', 'longitude'])
     count = 0
@@ -212,6 +214,17 @@ def get_flux(): # to be wrapped together
     # Error of mean calculation
     return flux_mean, flux_err
 
+
+def get_flux(): # to be wrapped together # flux mean has coords bioclass and week 
+    
+    flux_meanCO2, flux_errCO2 = get_flux_CO2()
+    flux_meanCO, flux_errCO = get_flux_CO() # err checken!!!!!!!!!!!!!!
+    andere Koordinaten 
+    xr.concat
+    return flux_mean, flux_err
+   
+
+    
 
 
 
