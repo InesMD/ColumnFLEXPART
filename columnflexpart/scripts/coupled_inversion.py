@@ -154,8 +154,8 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         
         #Loads Measurements, Measurement Uncertainty, Backgrounds, footprints paths for CO2
         for i, result_row in tqdm(predictionsCO2_cut.iterrows(), desc="Loading CO2 measurements", total=predictionsCO2_cut.shape[0]):
-            concentrationsCO2.append(result_row["xco2_measurement"] - result_row[concentration_key])
-            concentration_errsCO2.append(result_row["measurement_uncertainty"])
+            concentrationsCO2.append((result_row["xco2_measurement"] - result_row[concentration_key])*1e-6)
+            concentration_errsCO2.append(result_row["measurement_uncertainty"]*1e-6)
             measurement_id.append(i)
             footprint_paths.append(result_row["directory"])
         
@@ -163,8 +163,8 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
 
         #Loads Measurements, Measurement Uncertainty, Backgrounds, footprints paths for CO
         for i, result_row in tqdm(predictionsCO_cut.iterrows(), desc="Loading CO measurements", total=predictionsCO_cut.shape[0]):
-            concentrationsCO.append(result_row["xco2_measurement"] - result_row[concentration_key])
-            concentration_errsCO.append(result_row["measurement_uncertainty"])
+            concentrationsCO.append((result_row["xco2_measurement"] - result_row[concentration_key])*1e-9)
+            concentration_errsCO.append(result_row["measurement_uncertainty"]*1e-9)
             measurement_id.append(m+i) 
 
         concentrations = xr.DataArray(
@@ -179,7 +179,6 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         )
 
         footprints = self.get_footprints_K_matrix(footprint_paths)
-        
         return footprints, concentrations, concentration_errs
 
     def get_flux_CO2(self,bio_only=False, no_bio=False):
@@ -280,10 +279,127 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
     
         flux_errCO = flux_errCO.assign_coords(bioclass = ((flux_errCO.bioclass+ flux_errCO.bioclass.values.max() + 1)))
         flux_err = xr.concat([flux_errCO2, flux_errCO], dim = "bioclass")
-
+        print(flux_mean.shape)
+        print(flux_err.shape)
         return flux_mean, flux_err
     
 
+    def get_regression(
+        self,
+        x: Optional[np.ndarray] = None,
+        yerr: Optional[Union[np.ndarray, xr.DataArray, float, list[float]]] = None, 
+        xerr: Optional[Union[np.ndarray, list]] = None,
+        with_prior: Optional[bool] = True,
+        alpha: Optional[float] = None,
+        ) -> bayesinverse.Regression:
+        """Constructs a Regression object from class attributes and inputs 
+
+        Args:
+            x (Optional[np.ndarray], optional): Alternative values for prior. Defaults to None.
+            yerr (Optional[Union[np.ndarray, xr.DataArray, float, list[float]]], optional): Alternative values for y_covariance. Defaults to None.
+            xerr (Optional[Union[np.ndarray, list]], optional): Alternative values for x_covariances. Defaults to None.
+            with_prior (Optional[bool], optional): Switch to use prior. Defaults to True.
+            alpha (Optional[float]): Regulatization value
+
+        Returns:
+            bayesinverse.Regression: Regression model
+        """        
+        concentration_errs = self.concentration_errs.values
+        if not yerr is None:
+            if isinstance(yerr, float):
+                yerr = np.ones_like(concentration_errs) * yerr
+            elif isinstance(yerr, xr.DataArray):
+                if yerr.size == 1:
+                    yerr = np.ones_like(concentration_errs) * yerr.values
+                else:
+                    yerr = yerr.values
+            concentration_errs = yerr
+        
+        flux_errs = self.flux_errs_flat
+        if not xerr is None:
+            if isinstance(xerr, float):
+                xerr = np.ones_like(flux_errs) * xerr
+            if isinstance(xerr, xr.DataArray):
+                if xerr.size == 1:
+                    xerr = np.ones_like(flux_errs) * xerr.values
+                elif xerr.shape == self.flux_errs.shape:
+                    xerr = xerr.stack(new=[self.time_coord, *self.spatial_valriables]).values        
+                else:
+                    xerr.values
+            flux_errs = xerr
+
+        if not x is None:
+            x_prior = x
+        else:
+            x_prior = self.flux_flat.values
+
+        if with_prior:
+            #print(len(concentration_errs.values))
+            self.reg = bayesinverse.Regression(
+                y = self.concentrations.values, 
+                K = self.footprints_flat.values, 
+                x_prior = x_prior, 
+                x_covariance = flux_errs**2, 
+                y_covariance = concentration_errs**2, 
+                alpha = alpha
+            )
+        else:
+            self.reg = bayesinverse.Regression(
+                y = self.concentrations.values, 
+                K = self.footprints_flat.values,
+                alpha = alpha
+            )
+        return self.reg
+
+    def fit(
+        self, 
+        x: Optional[np.ndarray] = None,
+        yerr: Optional[Union[np.ndarray, xr.DataArray, float, list[float]]] = None, 
+        xerr: Optional[Union[np.ndarray, list]] = None,
+        with_prior: Optional[bool] = True,
+        alpha: float = None,
+        ) -> xr.DataArray:
+        """Uses bayesian inversion to estiamte emissions.
+
+        Args:
+            yerr (Optional[list], optional): Can be used instead of loaded errorof measurement. Defaults to None.
+            xerr (Optional[list], optional): Can be used instead of error of the mean of the fluxes. Defaults to None.
+            with_prior (Optional[bool]): Wether to use a prior or not. True strongly recommended. Defaults to True.
+            alpha (Optional[float]): Value to weigth xerr against yerr. Is used as in l curve calculation. Defaults to 1.
+
+        Returns:
+            xr.DataArray: estimated emissions
+        """        
+        _ = self.get_regression(x, yerr, xerr, with_prior, alpha)
+        
+        self.fit_result = self.reg.fit()
+        self.predictions_flat = xr.DataArray(
+            data = self.fit_result[0],
+            dims = ["new"],
+            coords = dict(new=self.coords)
+        )
+        self.predictions = self.predictions_flat.unstack("new")
+        self.prediction_errs_flat = xr.DataArray(
+            data = np.sqrt(np.diag(self.get_posterior_covariance())),
+            dims = ["new"],
+            coords = dict(new=self.coords)
+        )
+        self.prediction_errs = self.prediction_errs_flat.unstack("new")
+        return self.predictions
+
+        
+    def get_land_ocean_error(self, factor):
+        CO2flux_errs = self.flux_errs.where(self.flux_errs.bioclass < (self.flux_errs.bioclass.max()+1)/2, drop = True)
+        CO2err = xr.ones_like(CO2flux_errs)* CO2flux_errs.mean()
+        CO2err = CO2err.where(CO2err.bioclass != 0, CO2flux_errs.mean() * factor)
+
+        COflux_errs = self.flux_errs.where(self.flux_errs.bioclass >= (self.flux_errs.bioclass.max()+1)/2, drop = True)
+        COerr = xr.ones_like(COflux_errs)* COflux_errs.mean()
+        COerr = COerr.where(COerr.bioclass != (self.flux_errs.bioclass.max()+1)/2, COflux_errs.mean() * factor)
+        
+        err = xr.concat([CO2err,COerr], dim = "bioclass")
+
+        return err
         
 
 
@@ -306,7 +422,7 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
 
 
 
-
+'''
 
 Inversion = CoupledInversion(
     result_pathCO = "/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/predictions3_CO.pkl" ,
@@ -320,7 +436,7 @@ Inversion = CoupledInversion(
     boundary=[110.0, 155.0, -45.0, -10.0], 
        ) 
 
-
+'''
 
 #for CO: 
 #Inversion = InversionBioclassCO(
