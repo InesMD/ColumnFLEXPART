@@ -1,230 +1,290 @@
-'''import xarray as xr
-import numpy as np
-import pandas as pd
-from datetime import datetime
-from tqdm.auto import tqdm
-import os
-import matplotlib.pyplot as plt
-from columnflexpart.utils import select_boundary, optimal_lambda
-from columnflexpart.classes.flexdataset import FlexDataset
-from functools import partial
-import geopandas as gpd
-import cartopy.crs as ccrs
-from typing import Optional, Literal, Union, Callable, Iterable, Any
-from pathlib import Path
-import bayesinverse
-from columnflexpart.classes.inversion import InversionBioclass
-from columnflexpart.utils.utils import optimal_lambda
-from columnflexpart.classes.inversionCO import InversionBioclassCO
-#from columnflexpart.utils.utilsCO import optimal_lambda
-from matplotlib.colors import LogNorm 
-from matplotlib.dates import DateFormatter
-from matplotlib.colors import LinearSegmentedColormap
-import matplotlib as mpl
-from matplotlib import colors as mcolors'''
 import pandas as pd
 import numpy as np 
 import pytest
 import datetime 
-import tqdm
+from tqdm.auto import tqdm
 import os
 import xarray as xr
 from columnflexpart.utils import select_boundary
 from columnflexpart.classes import InversionBioclass
+from columnflexpart.classes import Inversion
 
-def select_relevant_times(date_min: datetime.datetime, date_max: datetime.datetime, path_to_CO2_predictions : str, path_to_CO_predictions: str): 
-      '''returns: cropped predictionsCO and predicitons CO2 datasets for which measurements will be loaded later'''
-      assert date_max >= date_min 
-      predictionsCO2 = pd.read_pickle(path_to_CO2_predictions+'predictions.pkl')
-      predictionsCO = pd.read_pickle(path_to_CO_predictions+'predictions3_CO.pkl') 
-      mask = (predictionsCO2['time']>=date_min)&(predictionsCO2['time']<=date_max) # selbe maske, da CO und CO2 genau gleich sortiert 
-      predictionsCO2_cut = predictionsCO2[mask]
-      predictionsCO_cut = predictionsCO[mask]
-      if date_min.date() < predictionsCO_cut['time'].min().date():
-           print('Given date min '+str(date_min.date())+' is not in predictions (Minimum : '+str(predictionsCO_cut['time'].min())+')')
-      if date_max.date() > predictionsCO_cut['time'].max().date():
-           print('Given date max '+str(date_max.date())+' is not in predictions (Maximum : '+str(predictionsCO_cut['time'].max())+')')
-      return predictionsCO2_cut, predictionsCO_cut
+from typing import Optional, Literal, Union, Callable, Iterable, Any
+from pathlib import Path
+import bayesinverse
 
-def get_footprints_K_matrix(footprint_paths: list[str]): 
-    footprints = []
-    for i, filepath in tqdm(footprint_paths.iterrows(), desc="Loading footprints", total=len(footprint_paths)):
-        file = os.path.join(filepath, "Footprint_total_inter_time.nc")
-        if not os.path.exists(file):
-            continue        
-        footprint: xr.DataArray = xr.load_dataarray(file)
-        footprint = footprint.expand_dims("measurement").assign_coords(dict(measurement=[i]))
-        #if not self.data_outside_month:
-        #    footprint = footprint.where((footprint.time >= self.start) * (footprint.time < self.stop), drop=True)
-        #else:
-        min_time = footprint.time.min().values.astype("datetime64[D]") if footprint.time.min() < min_time else min_time
-        footprint = select_boundary(footprint, [110.0, 155.0, -45.0, -10.0])
-        footprint = self.coarsen_data(footprint, "sum", None)
-        footprints.append(footprint)
-    
-    # merging and conversion from s m^3/kg to s m^2/mol
-    footprints = xr.concat(footprints, dim = "measurement")/100 * 0.029 
+Pathlike = Union[Path, str]
+Boundary = Optional[tuple[float, float, float, float]]
+Timeunit = Literal["week", "day"]
+Coarsefunc = Union[Callable, tuple[Callable, Callable], str, tuple[str, str]]
+Concentrationkey = Literal["background", "background_inter", "xco2", "xco2_inter"]
 
-    zero_block = xr.zeros_like(footprints)
-    zero_block_left = zero_block.assign_coords(measurement = ((zero_block.measurement+ zero_block.measurement.values.max() + 1)))
-    block_left = xr.concat([footprints,zero_block_left], dim = "measurement")
+class CoupledInversion(InversionBioclass):# oder von InversionBioClass? 
+    # INIT VERFOLLSTÄMNDIGEN UND ALLES TESTEN!!!!!!!!
+    def __init__(self, 
+        result_pathCO: Pathlike,
+        result_pathCO2: Pathlike,
+        flux_pathCO, 
+        flux_pathCO2,
+        bioclass_path: Pathlike,
+        month: str,
+        date_min: datetime.datetime,
+        date_max = datetime.datetime, 
+        time_coarse: Optional[int] = None, 
+        coarsen_boundary: str = "pad",
+        time_unit: Timeunit = "week",
+        boundary: Boundary = None,
+        concentration_key: Concentrationkey = "background_inter",
+        data_outside_month: bool = False
+       ): 
+        
+        self.pathCO = result_pathCO
+        self.pathCO2 = result_pathCO2
+        self.n_eco: Optional[int] = None
+        self.bioclass_path = bioclass_path
+        self.bioclass_mask = select_boundary(self.get_bioclass_mask(), boundary)
+        self.spatial_valriables = ["bioclass"]
+        self.start = np.datetime64(month).astype("datetime64[D]")
+        self.stop = (np.datetime64(month) + np.timedelta64(1, "M")).astype("datetime64[D]")
+        self.date_min = date_min 
+        self.date_max = date_max 
+        self.flux_pathCO = Path(flux_pathCO)
+        self.flux_pathCO2 = Path(flux_pathCO2)
+        self.time_coarse = time_coarse
+        self.coarsen_boundary = coarsen_boundary
+        self.time_unit = time_unit
+        self.boundary = boundary
+        self.concentration_key = concentration_key
+        self.data_outside_month = data_outside_month
 
-    zero_block_right = zero_block.assign_coords(bioclass = ((zero_block.bioclass+ zero_block.bioclass.values.max() + 1)))
-    block_bottom_right = footprints.assign_coords(measurement = ((footprints.measurement+ footprints.measurement.values.max() + 1)), 
-                                                  bioclass = ((footprints.bioclass+ footprints.bioclass.values.max() + 1)) )
-    block_right = xr.concat([zero_block_right,block_bottom_right], dim = "measurement")
+        #nötig? 
+        self.min_time = None
+        self.fit_result: Optional[tuple] = None
+        self.predictions: Optional[xr.DataArray] = None
+        self.predictions_flat: Optional[xr.DataArray] = None
+        self.prediction_errs: Optional[xr.DataArray] = None
+        self.prediction_errs_flat: Optional[xr.DataArray] = None
+        self.l_curve_result: Optional[tuple] = None
+        self.alpha: Optional[Iterable[float]] = None
+        self.reg: Optional[bayesinverse.Regression] = None
+        ####
 
-    total_matrix = xr.concat([block_left, block_right], dim = "bioclass")
-    # extra time coarsening for consistent coordinates 
-    #self.min_time = min_time
-    if not self.time_coarse is None:
-        total_matrix = total_matrix.coarsen({self.time_coord:self.time_coarse}, boundary=self.coarsen_boundary).sum()
-    total_matrix = total_matrix.where(~np.isnan(total_matrix), 0) 
+        self.time_coord, self.isocalendar = self.get_time_coord(self.time_unit)
+        self.footprints, self.concentrations, self.concentration_errs = self.get_footprint_and_measurement(self.concentration_key)
+        self.flux, self.flux_errs = self.get_flux()
 
-    return total_matrix
+        self.coords = self.footprints.stack(new=[self.time_coord, *self.spatial_valriables]).new
+
+        self.footprints_flat = self.footprints.stack(new=[self.time_coord, *self.spatial_valriables])
+        self.flux_flat = self.flux.stack(new=[self.time_coord, *self.spatial_valriables])
+        self.flux_errs_flat = self.flux_errs.stack(new=[self.time_coord, *self.spatial_valriables])
 
 
-def get_footprint_and_measurement(path_to_CO2_predictions : str, path_to_CO_predictions: str, date_min : datetime.datetime, date_max: datetime.datetime):
+    def select_relevant_times(self): 
+        '''returns: cropped predictionsCO and predicitons CO2 datasets for which measurements will be loaded later'''
+        assert self.date_max >= self.date_min 
+        predictionsCO2 = pd.read_pickle(self.pathCO2)#+'predictions.pkl')
+        predictionsCO = pd.read_pickle(self.pathCO)#+'predictions3_CO.pkl') 
+        mask = (predictionsCO2['time']>=self.date_min)&(predictionsCO2['time']<=self.date_max) # selbe maske, da CO und CO2 genau gleich sortiert 
+        predictionsCO2_cut = predictionsCO2[mask]
+        predictionsCO_cut = predictionsCO[mask]
+        if self.date_min.date() < predictionsCO_cut['time'].min().date():
+            print('Given date min '+str(self.date_min.date())+' is not in predictions (Minimum : '+str(predictionsCO_cut['time'].min())+')')
+        if self.date_max.date() > predictionsCO_cut['time'].max().date():
+            print('Given date max '+str(self.date_max.date())+' is not in predictions (Maximum : '+str(predictionsCO_cut['time'].max())+')')
+        return predictionsCO2_cut, predictionsCO_cut
 
-    #Returns pandas Dataframes with relevant times only - I SHOULD APPEND ALL PREDICITONS AND PREDICIONSCO FILES TO HAVE ONE WITH ALL TIME STEPS PER SPECIES 
-    predictionsCO2_cut, predictionsCO_cut = select_relevant_times(date_min, date_max, path_to_CO2_predictions , path_to_CO_predictions)
+    def get_footprints_K_matrix(self,footprint_paths: list[str]): 
+        footprints = []
+        i = 0
+        min_time = self.start
+        for filepath in tqdm(footprint_paths, desc="Loading footprints"):#, total=len(footprint_paths)):
+            file = os.path.join(filepath, "Footprint_total_inter_time.nc")
+            if not os.path.exists(file):
+                continue        
+            footprint: xr.DataArray = xr.load_dataarray(file)
+            footprint = footprint.expand_dims("measurement").assign_coords(dict(measurement=[i]))
+            if not self.data_outside_month:
+                footprint = footprint.where((footprint.time >= self.start) * (footprint.time < self.stop), drop=True)
+                #print([pd.Timestamp(x).to_pydatetime() for x in footprint.time.values])
+                #footprint = footprint.where([(pd.Timestamp(x).to_pydatetime() >= self.start) for x in footprint.time.values]*footprint.time , drop=True)
+                #footprint = footprint.where(([pd.Timestamp(x).to_pydatetime() < self.stop for x in  footprint.time.values]), drop = True)
+            #else:
+            #print(footprint.time.min().values)
+            min_time = footprint.time.min().values.astype("datetime64[D]") if footprint.time.min() < min_time.astype("datetime64[D]") else min_time.astype("datetime64[D]")
+            footprint = select_boundary(footprint, self.boundary)
+            footprint = self.coarsen_data(footprint, "sum", None)
+            footprints.append(footprint)
+            i += 1
+        
+        # merging and conversion from s m^3/kg to s m^2/mol
+        footprints = xr.concat(footprints, dim = "measurement")/100 * 0.029 
 
-    concentrationsCO2 = [] # measurement - background
-    concentration_errsCO2 = []
-    concentrationsCO = []
-    concentration_errsCO = []
-    measurement_id = []
-    footprint_paths = []
-    footprints = []
-    
-    #Loads Measurements, Measurement Uncertainty, Backgrounds, footprints paths for CO2
-    for i, result_row in tqdm(predictionsCO2_cut.iterrows(), desc="Loading CO2 measurements", total=predictionsCO2_cut.shape[0]):
-        concentrationsCO2.append(result_row["xco2_measurement"] - result_row["background"])
-        concentration_errsCO2.append(result_row["measurement_uncertainty"])
-        measurement_id.append(i)
-        footprint_paths.append(result_row["directory"])
-    
-    m = len(measurement_id)
-    print('Measurment number single tracers: '+str(m))
+        zero_block = xr.zeros_like(footprints)
+        zero_block_left = zero_block.assign_coords(measurement = ((zero_block.measurement+ zero_block.measurement.values.max() + 1)))
+        block_left = xr.concat([footprints,zero_block_left], dim = "measurement")
 
-    #Loads Measurements, Measurement Uncertainty, Backgrounds, footprints paths for CO
-    for i, result_row in tqdm(predictionsCO_cut.iterrows(), desc="Loading CO measurements", total=predictionsCO_cut.shape[0]):
-        concentrationsCO.append(result_row["xco2_measurement"] - result_row["background"])
-        concentration_errsCO.append(result_row["measurement_uncertainty"])
-        measurement_id.append(m+i) 
+        zero_block_right = zero_block.assign_coords(bioclass = ((zero_block.bioclass+ zero_block.bioclass.values.max() + 1)))
+        block_bottom_right = footprints.assign_coords(measurement = ((footprints.measurement+ footprints.measurement.values.max() + 1)), 
+                                                    bioclass = ((footprints.bioclass+ footprints.bioclass.values.max() + 1)) )
+        block_right = xr.concat([zero_block_right,block_bottom_right], dim = "measurement")
 
-    concentrations = xr.DataArray(
-        data = concentrationsCO2+concentrationsCO,# append CO2 and CO
-        dims = "measurement",
-        coords = dict(measurement = measurement_id) 
-    )
-    concentration_errs  = xr.DataArray(
-        data = concentration_errsCO2+concentration_errsCO,# append CO2 and CO
-        dims = "measurement",
-        coords = dict(measurement = measurement_id) 
-    )
+        total_matrix = xr.concat([block_left, block_right], dim = "bioclass")
+        # extra time coarsening for consistent coordinates 
+        self.min_time = min_time
+        if not self.time_coarse is None:
+            total_matrix = total_matrix.coarsen({self.time_coord:self.time_coarse}, boundary=self.coarsen_boundary).sum()
+        total_matrix = total_matrix.where(~np.isnan(total_matrix), 0) 
 
-    footprints = get_footprints_K_matrix(footprint_paths)
-    
-    return footprints, concentrations, concentration_errs
+        return total_matrix
 
-def get_flux_CO2():
-     #CO2 
-    flux_files = []
-    for date in np.arange(self.min_time.astype("datetime64[D]"), self.stop):
-        date_str = str(date).replace("-", "")
-        flux_files.append(self.flux_path.parent / (self.flux_path.name + f"{date_str}.nc"))
-    flux = xr.open_mfdataset(flux_files, drop_variables="time_components").compute()
-    assert not (bio_only and no_bio), "Choose either 'bio_only' or 'no_bio' not both"
-    if bio_only:
-        flux = flux.bio_flux_opt + flux.ocn_flux_opt
-    elif no_bio:
-        flux = flux.fossil_flux_imp
-    else:
-        flux = flux.bio_flux_opt + flux.ocn_flux_opt + flux.fossil_flux_imp + flux.fire_flux_imp
-    flux = select_boundary(flux, self.boundary)
-    flux_mean = self.coarsen_data(flux, "mean", self.time_coarse)
-    flux_err = self.get_flux_err(flux, flux_mean)
-    return flux_mean, flux_err
 
-def get_flux_CO(): 
-#CO: 
-    total_flux = xr.DataArray()
-    first_flux = True
-    for year in range(2019,2020):
-        cams_flux_bio = xr.DataArray()
-        cams_flux_ant = xr.Dataset()
-        for sector in ['AIR_v1.1', 'BIO_v3.1', 'ANT_v4.2']:
-            if sector == 'ANT_v4.2':
-                cams_file = "/CAMS-AU-"+sector+"_carbon-monoxide_"+str(year)+"_sum_regr1x1.nc"
-                flux_ant_part = xr.open_mfdataset(
-                    str(self.flux_path)+cams_file,
+    def get_footprint_and_measurement(self, concentration_key):#path_to_CO2_predictions : str, path_to_CO_predictions: str, date_min : datetime.datetime, date_max: datetime.datetime):
+
+        #Returns pandas Dataframes with relevant times only - I SHOULD APPEND ALL PREDICITONS AND PREDICIONSCO FILES TO HAVE ONE WITH ALL TIME STEPS PER SPECIES 
+        predictionsCO2_cut, predictionsCO_cut = self.select_relevant_times()
+
+        concentrationsCO2 = [] # measurement - background
+        concentration_errsCO2 = []
+        concentrationsCO = []
+        concentration_errsCO = []
+        measurement_id = []
+        footprint_paths = []
+        footprints = []
+        
+        #Loads Measurements, Measurement Uncertainty, Backgrounds, footprints paths for CO2
+        for i, result_row in tqdm(predictionsCO2_cut.iterrows(), desc="Loading CO2 measurements", total=predictionsCO2_cut.shape[0]):
+            concentrationsCO2.append(result_row["xco2_measurement"] - result_row[concentration_key])
+            concentration_errsCO2.append(result_row["measurement_uncertainty"])
+            measurement_id.append(i)
+            footprint_paths.append(result_row["directory"])
+        
+        m = len(measurement_id)
+
+        #Loads Measurements, Measurement Uncertainty, Backgrounds, footprints paths for CO
+        for i, result_row in tqdm(predictionsCO_cut.iterrows(), desc="Loading CO measurements", total=predictionsCO_cut.shape[0]):
+            concentrationsCO.append(result_row["xco2_measurement"] - result_row[concentration_key])
+            concentration_errsCO.append(result_row["measurement_uncertainty"])
+            measurement_id.append(m+i) 
+
+        concentrations = xr.DataArray(
+            data = concentrationsCO2+concentrationsCO,# append CO2 and CO
+            dims = "measurement",
+            coords = dict(measurement = measurement_id) 
+        )
+        concentration_errs  = xr.DataArray(
+            data = concentration_errsCO2+concentration_errsCO,# append CO2 and CO
+            dims = "measurement",
+            coords = dict(measurement = measurement_id) 
+        )
+
+        footprints = self.get_footprints_K_matrix(footprint_paths)
+        
+        return footprints, concentrations, concentration_errs
+
+    def get_flux_CO2(self,bio_only=False, no_bio=False):
+        #CO2 
+        flux_files = []
+        for date in np.arange(self.min_time.astype("datetime64[D]"), self.stop):
+            date_str = str(date).replace("-", "")
+            flux_files.append(self.flux_pathCO2.parent / (self.flux_pathCO2.name + f"{date_str}.nc"))
+        flux = xr.open_mfdataset(flux_files, drop_variables="time_components").compute()
+        assert not (bio_only and no_bio), "Choose either 'bio_only' or 'no_bio' not both"
+        if bio_only:
+            flux = flux.bio_flux_opt + flux.ocn_flux_opt
+        elif no_bio:
+            flux = flux.fossil_flux_imp
+        else:
+            flux = flux.bio_flux_opt + flux.ocn_flux_opt + flux.fossil_flux_imp + flux.fire_flux_imp
+        flux = select_boundary(flux, self.boundary)
+        flux_mean = self.coarsen_data(flux, "mean", self.time_coarse)
+        flux_err = self.get_flux_err(flux, flux_mean)
+        return flux_mean, flux_err
+
+    def get_flux_CO(self): 
+    #CO: 
+        total_flux = xr.DataArray()
+        first_flux = True
+        for year in range(2019,2020):
+            cams_flux_bio = xr.DataArray()
+            cams_flux_ant = xr.Dataset()
+            for sector in ['AIR_v1.1', 'BIO_v3.1', 'ANT_v4.2']:
+                if sector == 'ANT_v4.2':
+                    cams_file = "/CAMS-AU-"+sector+"_carbon-monoxide_"+str(year)+"_sum_regr1x1.nc"
+                    flux_ant_part = xr.open_mfdataset(
+                        str(self.flux_pathCO)+cams_file,
+                        combine="by_coords",
+                        chunks="auto",
+                        )
+                    flux_ant_part = flux_ant_part.assign_coords({'year': ('time', [year*i for i in np.ones(12)])})
+                    flux_ant_part = flux_ant_part.assign_coords({'MonthDate': ('time', [datetime.datetime(year=year, month= i, day = 1) for i in np.arange(1,13)])})
+                    cams_flux_ant = flux_ant_part
+
+                elif sector == 'BIO_v3.1': 
+                    cams_file = "/CAMS-AU-"+sector+"_carbon-monoxide_2019_regr1x1.nc"   
+                    #print(str(self.flux_path)+cams_file)         
+                    flux_bio_part = xr.open_mfdataset(
+                    str(self.flux_pathCO)+cams_file,
                     combine="by_coords",
                     chunks="auto",
-                    )
-                flux_ant_part = flux_ant_part.assign_coords({'year': ('time', [year*i for i in np.ones(12)])})
-                flux_ant_part = flux_ant_part.assign_coords({'MonthDate': ('time', [datetime(year=year, month= i, day = 1) for i in np.arange(1,13)])})
-                cams_flux_ant = flux_ant_part
+                    )      
+                    flux_bio_part = flux_bio_part.emiss_bio.mean('TSTEP')
+                    flux_bio_part = flux_bio_part.assign_coords(dict({'time': ('time',[0,1,2,3,4,5,6,7,8,9,10,11] )}))
+                    flux_bio_part = flux_bio_part.assign_coords({'year': ('time', [year*i for i in np.ones(12)])})
+                    flux_bio_part = flux_bio_part.assign_coords({'MonthDate': ('time', [datetime.datetime(year=year, month= i, day = 1) for i in np.arange(1,13)])})
+                    cams_flux_bio = flux_bio_part                
+            total_flux_yr = (cams_flux_ant['sum'] + cams_flux_bio)/0.02801 # from kg/m^2/s to molCO/m^2/s 
+            if first_flux:
+                    first_flux = False
+                    total_flux = total_flux_yr
+            else:
+                total_flux = xr.concat([total_flux, total_flux_yr], dim = 'time')
 
-            elif sector == 'BIO_v3.1': 
-                cams_file = "/CAMS-AU-"+sector+"_carbon-monoxide_2019_regr1x1.nc"   
-                #print(str(self.flux_path)+cams_file)         
-                flux_bio_part = xr.open_mfdataset(
-                str(self.flux_path)+cams_file,
-                combine="by_coords",
-                chunks="auto",
-                )      
-                flux_bio_part = flux_bio_part.emiss_bio.mean('TSTEP')
-                flux_bio_part = flux_bio_part.assign_coords(dict({'time': ('time',[0,1,2,3,4,5,6,7,8,9,10,11] )}))
-                flux_bio_part = flux_bio_part.assign_coords({'year': ('time', [year*i for i in np.ones(12)])})
-                flux_bio_part = flux_bio_part.assign_coords({'MonthDate': ('time', [datetime(year=year, month= i, day = 1) for i in np.arange(1,13)])})
-                cams_flux_bio = flux_bio_part                
-        total_flux_yr = (cams_flux_ant['sum'] + cams_flux_bio)/0.02801 # from kg/m^2/s to molCO/m^2/s 
-        if first_flux:
-                first_flux = False
-                total_flux = total_flux_yr
-        else:
-            total_flux = xr.concat([total_flux, total_flux_yr], dim = 'time')
+        # select flux data for time period given: 
+        total_flux = total_flux.where(total_flux.MonthDate >= pd.to_datetime(self.start), drop = True )
+        total_flux = total_flux.where(total_flux.MonthDate <= pd.to_datetime(self.stop), drop = True )
 
-    # select flux data for time period given: 
-    total_flux = total_flux.where(total_flux.MonthDate >= pd.to_datetime(self.start), drop = True )
-    total_flux = total_flux.where(total_flux.MonthDate <= pd.to_datetime(self.stop), drop = True )
+        #cams_flux = cams_flux[:, :, 1:]
+        flux = select_boundary(total_flux, self.boundary)
 
-    #cams_flux = cams_flux[:, :, 1:]
-    flux = select_boundary(total_flux, self.boundary)
+        # create new flux dataset with value assigned to every day in range date start and date stop 
+        dates = [pd.to_datetime(self.start)]
+        date = dates[0]
+        while date < pd.to_datetime(self.stop):
+            date += datetime.timedelta(days = 1)
+            dates.append(pd.to_datetime(date))
+        fluxes = xr.DataArray(data = np.zeros((len(dates), len(flux.latitude.values), len(flux.longitude.values))), dims = ['time', 'latitude', 'longitude'])
+        count = 0
+        for i,dt in enumerate(dates): 
+            for m in range(len(flux.MonthDate.values)): # of moths 
+                if dt.month == pd.to_datetime(flux.MonthDate[m].values).month: 
+                #    if bol == True: 
+                    fluxes[i,:,:] =  flux[m,:,:]#/0.02801 
+        
+        fluxes = fluxes.assign_coords({'time': ('time', dates), 'latitude': ('latitude', flux.latitude.values), 'longitude': ('longitude', flux.longitude.values)})
+        flux_mean = self.coarsen_data(fluxes, "mean", self.time_coarse)
+        flux_err = self.get_flux_err(fluxes, flux_mean)
 
-    # create new flux dataset with value assigned to every day in range date start and date stop 
-    dates = [pd.to_datetime(self.start)]
-    date = dates[0]
-    while date < pd.to_datetime(self.stop):
-        date += datetime.timedelta(days = 1)
-        dates.append(pd.to_datetime(date))
-    fluxes = xr.DataArray(data = np.zeros((len(dates), len(flux.latitude.values), len(flux.longitude.values))), dims = ['time', 'latitude', 'longitude'])
-    count = 0
-    for i,dt in enumerate(dates): 
-        for m in range(len(flux.MonthDate.values)): # of moths 
-            if dt.month == pd.to_datetime(flux.MonthDate[m].values).month: 
-            #    if bol == True: 
-                fluxes[i,:,:] =  flux[m,:,:]#/0.02801 
+        # Error of mean calculation
+        return flux_mean, flux_err
+
+
+    def get_flux(self): # to be wrapped together # flux mean has coords bioclass and week 
+        
+        flux_meanCO2, flux_errCO2 = self.get_flux_CO2()
+        flux_meanCO, flux_errCO = self.get_flux_CO() # err checken!!!!!!!!!!!!!!
+
+        #adapt coordinates and concatenate fluxes
+        flux_meanCO = flux_meanCO.assign_coords(bioclass = ((flux_meanCO.bioclass+ flux_meanCO.bioclass.values.max() + 1)))
+        flux_mean = xr.concat([flux_meanCO2, flux_meanCO], dim = "bioclass")
     
-    fluxes = fluxes.assign_coords({'time': ('time', dates), 'latitude': ('latitude', flux.latitude.values), 'longitude': ('longitude', flux.longitude.values)})
-    flux_mean = self.coarsen_data(fluxes, "mean", self.time_coarse)
-    flux_err = self.get_flux_err(fluxes, flux_mean)
+        flux_errCO = flux_errCO.assign_coords(bioclass = ((flux_errCO.bioclass+ flux_errCO.bioclass.values.max() + 1)))
+        flux_err = xr.concat([flux_errCO2, flux_errCO], dim = "bioclass")
 
-    # Error of mean calculation
-    return flux_mean, flux_err
-
-
-def get_flux(): # to be wrapped together # flux mean has coords bioclass and week 
+        return flux_mean, flux_err
     
-    flux_meanCO2, flux_errCO2 = get_flux_CO2()
-    flux_meanCO, flux_errCO = get_flux_CO() # err checken!!!!!!!!!!!!!!
-    andere Koordinaten 
-    xr.concat
-    return flux_mean, flux_err
-   
 
-    
+        
 
 
 
@@ -248,6 +308,17 @@ def get_flux(): # to be wrapped together # flux mean has coords bioclass and wee
 
 
 
+Inversion = CoupledInversion(
+    result_pathCO = "/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/predictions3_CO.pkl" ,
+    result_pathCO2 = "/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/predictions.pkl" ,
+    flux_pathCO = "/work/bb1170/RUN/b382105/Data/CAMS/Fluxes/Regridded_1x1/", 
+    flux_pathCO2 = "/work/bb1170/RUN/b382105/Data/CarbonTracker2022/Flux/CT2022.flux1x1.",
+    bioclass_path = "/home/b/b382105/ColumnFLEXPART/resources/Ecosystems_AK_based_split_with_21_and_20_larger.nc",
+    month = '2019-12',
+    date_min = datetime.datetime(year = 2019, month = 12, day = 1),
+    date_max = datetime.datetime(year= 2019, month = 12, day = 31),
+    boundary=[110.0, 155.0, -45.0, -10.0], 
+       ) 
 
 
 
