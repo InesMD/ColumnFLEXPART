@@ -284,8 +284,6 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
     
         flux_errCO = flux_errCO.assign_coords(bioclass = ((flux_errCO.bioclass+ flux_errCO.bioclass.values.max() + 1)))
         flux_err = xr.concat([flux_errCO2, flux_errCO], dim = "bioclass")
-        print(flux_mean.shape)
-        print(flux_err.shape)
         return flux_mean, flux_err
     
 
@@ -392,6 +390,8 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         self.prediction_errs = self.prediction_errs_flat.unstack("new")
         return self.predictions
 
+
+    # for calculation errors : 
         
     def get_land_ocean_error(self, factor):
         CO2flux_errs = self.flux_errs.where(self.flux_errs.bioclass < (self.flux_errs.bioclass.max()+1)/2, drop = True)
@@ -407,7 +407,50 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         print(COflux_errs.mean())
         err = xr.concat([CO2err,COerr], dim = "bioclass")
 
+        self.flux_errs = err
         return err
+    
+    
+    def calc_errors_flat_area_weighted_scaled_to_mean_flux(self, area_bioreg): 
+        flux_mean = Inversion.flux
+        flat_errors = np.ones((int(len(flux_mean.bioclass.values)/2), len(flux_mean.week.values)))
+        area_bioreg[0] = area_bioreg[0]*10000000 # ocean smaller
+        final_errorCO = np.ones(flat_errors.shape)
+        final_errorCO2 = np.ones(flat_errors.shape)
+        for w in range(len(flux_mean.week.values)): 
+            area_weighted_errors = flat_errors[:,w]/area_bioreg
+            # checken ob richtiger bereich ausgewählt wurde !!!!!!!!!!!!!!!!!!
+            scaling_factorCO2 = flux_mean[1:int((len(flux_mean.bioclass.values))/2), w].mean()/area_weighted_errors[1:].mean()
+            scaling_factorCO = flux_mean[int((len(flux_mean.bioclass.values))/2)+1:(len(flux_mean.bioclass.values)), w].mean()/area_weighted_errors[1:].mean()
+            final_errorCO[:,w] = scaling_factorCO.values*area_weighted_errors
+            final_errorCO2[:,w] = scaling_factorCO2.values*area_weighted_errors
+            print('Week: '+str(w))
+            print('Mean error CO:'+str(np.mean(scaling_factorCO.values*area_weighted_errors)))
+            print('Mean error CO2:'+str(np.mean(scaling_factorCO2.values*area_weighted_errors)))
+            print('Mean flux CO: '+str(flux_mean[int((len(flux_mean.bioclass.values))/2):(len(flux_mean.bioclass.values)), w].mean()))
+            print('Mean flux CO2: '+str(flux_mean[1:int((len(flux_mean.bioclass.values))/2), w].mean()))
+
+        final_error = np.concatenate([final_errorCO2, final_errorCO])
+        err_scaled = xr.DataArray(data=final_error, coords=dict({ 'bioclass': ('bioclass',flux_mean.bioclass.values),# [0,1,2,3,4,5,6]),
+                                                                    'week': ('week',flux_mean.week.values)}))
+        self.flux_errs = err_scaled
+        return err_scaled
+    
+    def get_prior_flux_errors(self, non_equal_region_size, area_bioreg):
+        # area bioreg: size of one inversion (CO or CO2, not both together)
+        # prior errors
+        if non_equal_region_size == True: 
+            print('per region')
+            err = self.calc_errors_flat_area_weighted_scaled_to_mean_flux(area_bioreg)
+            print('maximum error value: '+str(err.max()))
+        else: 
+            print('not per region')
+            err = self.get_land_ocean_error(1/100000) # adapt CO2 and CO errors separately check 
+            print(err)
+            print('maximum error value: '+str(err.max()))
+        print('Initlaizing done')
+        return err 
+
         
 
 

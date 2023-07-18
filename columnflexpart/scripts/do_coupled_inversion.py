@@ -5,59 +5,7 @@ import numpy as np
 import xarray as xr
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
-
-def plot_spatial_flux_results_or_diff_to_prior(savepath,  Inversion,molecule_name, week_min, week_max,alpha,vminv=None, diff =False):
-    factor = 12*10**6
-    plt.rcParams.update({'font.size':15})   
-    print(Inversion.predictions['bioclass'])
-    predictionsCO2 = Inversion.predictions[:,Inversion.predictions['bioclass']<Inversion.predictions['bioclass'].shape[0]/2]
-    predictionsCO = Inversion.predictions[:,Inversion.predictions['bioclass']>=Inversion.predictions['bioclass'].shape[0]/2]
-    predictionsCO = predictionsCO.assign_coords(bioclass = np.arange(0,len(predictionsCO['bioclass'])))
-    for week in range(week_min,week_max+1): 
-        plt.figure()
-        spatial_resultCO2 = Inversion.map_on_grid(predictionsCO2[(predictionsCO2['week']==week)])
-        spatial_resultCO = Inversion.map_on_grid(predictionsCO[(predictionsCO['week']==week)])
-        ax = plt.axes(projection=ccrs.PlateCarree())  
-        if diff== True: 
-            spatial_fluxCO2 = Inversion.map_on_grid(Inversion.flux[:int((len(Inversion.flux.bioclass.values))/2),Inversion.flux['week']==week])
-            spatial_fluxCO2 = spatial_fluxCO2 *factor
-            spatial_resultCO2 = (spatial_resultCO2*factor)-spatial_fluxCO2
-            spatial_resultCO2.plot(x = 'longitude', y = 'latitude',ax = ax, cmap = 'seismic',vmin = -10, vmax = 10, cbar_kwargs = {'label' : r'weekly flux [$\mu$gC m$^{-2}$ s$^{-1}$]', 'shrink':0.835})
-            plt.scatter(x = 150.8793,y =-34.4061,color="black")
-            ax.coastlines()
-            plt.savefig(savepath+str("{:e}".format(alpha))+'_CO2_Diff_to_prior_week_'+str(week)+'.png', bbox_inches = 'tight')
-            plt.close()
-
-            plt.figure()
-            spatial_fluxCO = Inversion.map_on_grid(Inversion.flux[int((len(Inversion.flux.bioclass.values))/2):,Inversion.flux['week']==week])
-            spatial_fluxCO = spatial_fluxCO *factor
-            spatial_resultCO = (spatial_resultCO*factor)-spatial_fluxCO
-            spatial_resultCO.plot(x = 'longitude', y = 'latitude',ax = ax, cmap = 'seismic',vmin = -10, vmax = 10, cbar_kwargs = {'label' : r'weekly flux [$\mu$gC m$^{-2}$ s$^{-1}$]', 'shrink':0.835})
-            plt.scatter(x = 150.8793,y =-34.4061,color="black")
-            ax.coastlines()
-            #plt.title('Week '+str(week))
-            plt.savefig(savepath+str("{:e}".format(alpha))+'_CO_Diff_to_prior_week_'+str(week)+'.png', bbox_inches = 'tight')
-        else: 
-            spatial_resultCO = (spatial_resultCO*factor)
-            spatial_resultCO2 = (spatial_resultCO2*factor)
-            spatial_resultCO2.plot(x = 'longitude', y = 'latitude',ax = ax, cmap = 'seismic',vmin = -250, vmax = 250, cbar_kwargs = {'label' : r'weekly flux [$\mu$gC m$^{-2}$ s$^{-1}$]', 'shrink':  0.835})
-            plt.scatter(x = 150.8793,y =-34.4061,color="black")
-            ax.coastlines()
-            #plt.title('Week '+str(week))
-            plt.savefig(savepath+str("{:e}".format(alpha))+'_Spatial_results_CO2_week_'+str(week)+'.png', bbox_inches = 'tight', dpi = 450)
-            plt.close()
-            plt.figure()
-            ax = plt.axes(projection=ccrs.PlateCarree())  
-            spatial_resultCO.plot(x = 'longitude', y = 'latitude',ax = ax, cmap = 'seismic',vmin = -10, vmax = 10, cbar_kwargs = {'label' : r'weekly flux [$\mu$gC m$^{-2}$ s$^{-1}$]', 'shrink':  0.835})
-            plt.scatter(x = 150.8793,y =-34.4061,color="black")
-            ax.coastlines()
-            #plt.title('Week '+str(week))
-            plt.savefig(savepath+str("{:e}".format(alpha))+'_Spatial_results_CO_week_'+str(week)+'.png', bbox_inches = 'tight', dpi = 450)
-            #spatial_result.to_netcdf(path =savepath+str("{:e}".format(alpha))+'_'+molecule_name+'_spatial_results_week_'+str(week)+'.nc')
-        plt.close()
-    #total_spatial_result.to_netcdf(path =savepath+'spatial_results_week_'+str(week_min)+'_'+str(week_max)+'.pkl')
-
-
+from columnflexpart.scripts.plot_coupled_inversion_results import plot_spatial_flux_results_or_diff_to_prior
 
 def do_everything(savepath, Inversion, molecule_name, mask_datapath_and_name, week_min, week_max, week_num, 
                   err):
@@ -69,44 +17,20 @@ def do_everything(savepath, Inversion, molecule_name, mask_datapath_and_name, we
     for l in [l3]:#1, l2]:#,l2,l3]:
         predictions = Inversion.fit(alpha = l, xerr = err) 
         #plot_l_curve(Inversion,err,molecule_name,savepath, l)
+
+        print('Plotting spatial difference of results to prior')
+        plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion, week_min, week_max,l, diff =True)
+        
         print('Plotting spatial results')
-        #plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion,molecule_name, week_min, week_max,l,vminv=None, diff =True)
-       # print('Plotting spatial difference of results to prior')
-        plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion, molecule_name,week_min, week_max,l,vminv=None, diff =False)
-        #print('Plotting averaging kernels')
+        plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion,week_min, week_max,l, diff =False)
+
+        print('Plotting averaging kernels')
         #plot_averaging_kernel(Inversion,molecule_name, l, class_num, week_num,savepath, plot_spatially=False)# class_num
         #plot_averaging_kernel(Inversion,molecule_name, l, class_num, week_num,savepath, plot_spatially=True,weekly = True)
         #plot_averaging_kernel(Inversion,molecule_name, l, class_num, week_num,savepath, plot_spatially=True)
         #print('Plotting concentrations')
         #calc_concentrations(Inversion,  'CO',l, savepath)
         #plot_weekly_concentrations(Inversion,'CO',l, savepath)
-
-
-def calc_errors_flat_area_weighted_scaled_to_mean_flux(flux_mean, area_bioreg): 
-    print(int(len(flux_mean.bioclass.values)/2))
-    print(len(area_bioreg))
-    flat_errors = np.ones((int(len(flux_mean.bioclass.values)/2), len(flux_mean.week.values)))
-    area_bioreg[0] = area_bioreg[0]*10000000 # ocean smaller
-    final_errorCO = np.ones(flat_errors.shape)
-    final_errorCO2 = np.ones(flat_errors.shape)
-    for w in range(len(flux_mean.week.values)): 
-        area_weighted_errors = flat_errors[:,w]/area_bioreg
-        # checken ob richtiger bereich ausgewählt wurde !!!!!!!!!!!!!!!!!!
-        scaling_factorCO2 = flux_mean[1:int((len(flux_mean.bioclass.values))/2), w].mean()/area_weighted_errors[1:].mean()
-        scaling_factorCO = flux_mean[int((len(flux_mean.bioclass.values))/2)+1:(len(flux_mean.bioclass.values)), w].mean()/area_weighted_errors[1:].mean()
-        final_errorCO[:,w] = scaling_factorCO.values*area_weighted_errors
-        final_errorCO2[:,w] = scaling_factorCO2.values*area_weighted_errors
-        print('Week: '+str(w))
-        print('Mean error CO:'+str(np.mean(scaling_factorCO.values*area_weighted_errors)))
-        print('Mean error CO2:'+str(np.mean(scaling_factorCO2.values*area_weighted_errors)))
-        print('Mean flux CO: '+str(flux_mean[int((len(flux_mean.bioclass.values))/2):(len(flux_mean.bioclass.values)), w].mean()))
-        print('Mean flux CO2: '+str(flux_mean[1:int((len(flux_mean.bioclass.values))/2), w].mean()))
-
-    final_error = np.concatenate([final_errorCO2, final_errorCO])
-    print(final_errorCO)
-    err_scaled = xr.DataArray(data=final_error, coords=dict({ 'bioclass': ('bioclass',flux_mean.bioclass.values),# [0,1,2,3,4,5,6]),
-                                                                'week': ('week',flux_mean.week.values)}))
-    return err_scaled
 
 
 ######################### adapt stuff from here on ####################################
@@ -148,17 +72,7 @@ Inversion = CoupledInversion(
     boundary=[110.0, 155.0, -45.0, -10.0], 
        ) 
 
-# prior errors
-if non_equal_region_size == True: 
-    print('per region')
-    err = calc_errors_flat_area_weighted_scaled_to_mean_flux(Inversion.flux, area_bioreg) # adapt!!!!!!!!!!!!!!!!!!!!!
-    print('maximum error value: '+str(err.max()))
-else: 
-    print('not per region')
-    err = Inversion.get_land_ocean_error(1/100000) # adapt CO2 and CO errors separately check 
-    print(err)
-    print('maximum error value: '+str(err.max()))
-print('Initlaizing done')
+err = Inversion.get_prior_flux_errors( non_equal_region_size, area_bioreg)
 
 do_everything(savepath, Inversion,'CO',mask, 52, 52, 6, err)
 #do_everything(savepath, Inversion, 'CO',mask, 1, 1, 6, err)
