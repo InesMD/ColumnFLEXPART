@@ -8,34 +8,39 @@ import cartopy.crs as ccrs
 
 def plot_spatial_flux_results_or_diff_to_prior(savepath,  Inversion,molecule_name, week_min, week_max,alpha,vminv=None, diff =False):
     factor = 12*10**6
-    #total_spatial_result = xr.Dataset()
     plt.rcParams.update({'font.size':15})   
-    predictionsCO2 = Inversion.predictions[:,Inversion.predictions['bioclass']<=Inversion.predictions['bioclass'].shape[0]/2]
-    predictionsCO = Inversion.predictions[:,Inversion.predictions['bioclass']>Inversion.predictions['bioclass'].shape[0]/2]
+    print(Inversion.predictions['bioclass'])
+    predictionsCO2 = Inversion.predictions[:,Inversion.predictions['bioclass']<Inversion.predictions['bioclass'].shape[0]/2]
+    predictionsCO = Inversion.predictions[:,Inversion.predictions['bioclass']>=Inversion.predictions['bioclass'].shape[0]/2]
     predictionsCO = predictionsCO.assign_coords(bioclass = np.arange(0,len(predictionsCO['bioclass'])))
-    print(predictionsCO)
     for week in range(week_min,week_max+1): 
         plt.figure()
-        print(Inversion.predictions)
-        spatial_result = Inversion.map_on_grid(predictionsCO2[(predictionsCO2['week']==week)])
+        spatial_resultCO2 = Inversion.map_on_grid(predictionsCO2[(predictionsCO2['week']==week)])
         spatial_resultCO = Inversion.map_on_grid(predictionsCO[(predictionsCO['week']==week)])
-        print(spatial_resultCO)
         ax = plt.axes(projection=ccrs.PlateCarree())  
         if diff== True: 
-            spatial_flux = Inversion.map_on_grid(Inversion.flux[:,Inversion.flux['week']==week])
-            spatial_flux = spatial_flux *factor
-            spatial_result = (spatial_result*factor)-spatial_flux
-            spatial_result.plot(x = 'longitude', y = 'latitude',ax = ax, cmap = 'seismic',vmin = -10, vmax = 10, cbar_kwargs = {'label' : r'weekly flux [$\mu$gC m$^{-2}$ s$^{-1}$]', 'shrink':0.835})
+            spatial_fluxCO2 = Inversion.map_on_grid(Inversion.flux[:int((len(Inversion.flux.bioclass.values))/2),Inversion.flux['week']==week])
+            spatial_fluxCO2 = spatial_fluxCO2 *factor
+            spatial_resultCO2 = (spatial_resultCO2*factor)-spatial_fluxCO2
+            spatial_resultCO2.plot(x = 'longitude', y = 'latitude',ax = ax, cmap = 'seismic',vmin = -10, vmax = 10, cbar_kwargs = {'label' : r'weekly flux [$\mu$gC m$^{-2}$ s$^{-1}$]', 'shrink':0.835})
+            plt.scatter(x = 150.8793,y =-34.4061,color="black")
+            ax.coastlines()
+            plt.savefig(savepath+str("{:e}".format(alpha))+'_CO2_Diff_to_prior_week_'+str(week)+'.png', bbox_inches = 'tight')
+            plt.close()
+
+            plt.figure()
+            spatial_fluxCO = Inversion.map_on_grid(Inversion.flux[int((len(Inversion.flux.bioclass.values))/2):,Inversion.flux['week']==week])
+            spatial_fluxCO = spatial_fluxCO *factor
+            spatial_resultCO = (spatial_resultCO*factor)-spatial_fluxCO
+            spatial_resultCO.plot(x = 'longitude', y = 'latitude',ax = ax, cmap = 'seismic',vmin = -10, vmax = 10, cbar_kwargs = {'label' : r'weekly flux [$\mu$gC m$^{-2}$ s$^{-1}$]', 'shrink':0.835})
             plt.scatter(x = 150.8793,y =-34.4061,color="black")
             ax.coastlines()
             #plt.title('Week '+str(week))
-            plt.savefig(savepath+str("{:e}".format(alpha))+'_'+molecule_name+'Diff_to_prior_week_'+str(week)+'.png', bbox_inches = 'tight')
+            plt.savefig(savepath+str("{:e}".format(alpha))+'_CO_Diff_to_prior_week_'+str(week)+'.png', bbox_inches = 'tight')
         else: 
             spatial_resultCO = (spatial_resultCO*factor)
-            spatial_result = (spatial_result*factor)
-            print(spatial_result)
-            #spatial_result = spatial_result.where(spatial_result.values>0.5)
-            spatial_result.plot(x = 'longitude', y = 'latitude',ax = ax, cmap = 'seismic',vmin = -250, vmax = 250, cbar_kwargs = {'label' : r'weekly flux [$\mu$gC m$^{-2}$ s$^{-1}$]', 'shrink':  0.835})
+            spatial_resultCO2 = (spatial_resultCO2*factor)
+            spatial_resultCO2.plot(x = 'longitude', y = 'latitude',ax = ax, cmap = 'seismic',vmin = -250, vmax = 250, cbar_kwargs = {'label' : r'weekly flux [$\mu$gC m$^{-2}$ s$^{-1}$]', 'shrink':  0.835})
             plt.scatter(x = 150.8793,y =-34.4061,color="black")
             ax.coastlines()
             #plt.title('Week '+str(week))
@@ -60,7 +65,7 @@ def do_everything(savepath, Inversion, molecule_name, mask_datapath_and_name, we
     #plot_prior_spatially(Inversion,molecule_name,week_min, week_max, savepath)
     #l1, l2 = find_two_optimal_lambdas(Inversion,[1e-7,10], 1e-14, err)# 1e-8
     #print(l1)
-    l3 = 1e-5
+    l3 = 1e-1
     for l in [l3]:#1, l2]:#,l2,l3]:
         predictions = Inversion.fit(alpha = l, xerr = err) 
         #plot_l_curve(Inversion,err,molecule_name,savepath, l)
@@ -78,15 +83,27 @@ def do_everything(savepath, Inversion, molecule_name, mask_datapath_and_name, we
 
 
 def calc_errors_flat_area_weighted_scaled_to_mean_flux(flux_mean, area_bioreg): 
-
-    flat_errors = np.ones((len(flux_mean.bioclass.values), len(flux_mean.week.values)))
+    print(int(len(flux_mean.bioclass.values)/2))
+    print(len(area_bioreg))
+    flat_errors = np.ones((int(len(flux_mean.bioclass.values)/2), len(flux_mean.week.values)))
     area_bioreg[0] = area_bioreg[0]*10000000 # ocean smaller
-    final_error = np.ones(flat_errors.shape)
+    final_errorCO = np.ones(flat_errors.shape)
+    final_errorCO2 = np.ones(flat_errors.shape)
     for w in range(len(flux_mean.week.values)): 
         area_weighted_errors = flat_errors[:,w]/area_bioreg
-        scaling_factor = flux_mean[1:, w].mean()/area_weighted_errors[1:].mean()
-        final_error[:,w] = scaling_factor.values*area_weighted_errors
+        # checken ob richtiger bereich ausgewählt wurde !!!!!!!!!!!!!!!!!!
+        scaling_factorCO2 = flux_mean[1:int((len(flux_mean.bioclass.values))/2), w].mean()/area_weighted_errors[1:].mean()
+        scaling_factorCO = flux_mean[int((len(flux_mean.bioclass.values))/2)+1:(len(flux_mean.bioclass.values)), w].mean()/area_weighted_errors[1:].mean()
+        final_errorCO[:,w] = scaling_factorCO.values*area_weighted_errors
+        final_errorCO2[:,w] = scaling_factorCO2.values*area_weighted_errors
+        print('Week: '+str(w))
+        print('Mean error CO:'+str(np.mean(scaling_factorCO.values*area_weighted_errors)))
+        print('Mean error CO2:'+str(np.mean(scaling_factorCO2.values*area_weighted_errors)))
+        print('Mean flux CO: '+str(flux_mean[int((len(flux_mean.bioclass.values))/2):(len(flux_mean.bioclass.values)), w].mean()))
+        print('Mean flux CO2: '+str(flux_mean[1:int((len(flux_mean.bioclass.values))/2), w].mean()))
 
+    final_error = np.concatenate([final_errorCO2, final_errorCO])
+    print(final_errorCO)
     err_scaled = xr.DataArray(data=final_error, coords=dict({ 'bioclass': ('bioclass',flux_mean.bioclass.values),# [0,1,2,3,4,5,6]),
                                                                 'week': ('week',flux_mean.week.values)}))
     return err_scaled
@@ -94,9 +111,21 @@ def calc_errors_flat_area_weighted_scaled_to_mean_flux(flux_mean, area_bioreg):
 
 ######################### adapt stuff from here on ####################################
 
-savepath = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/Images_coupled_Inversion/sectors_not_splitted_no_correlation/12/Gridded/'#Setup_AK_based2/'
-mask = "/home/b/b382105/ColumnFLEXPART/resources/OekomaskAU_Flexpart_version8_all1x1"#Ecosystems_AK_based_split_with_21_and_20_larger.nc"
-non_equal_region_size = False
+savepath = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/Images_coupled_Inversion/sectors_not_splitted_no_correlation/12/Ecosystem_based/'
+mask = "/home/b/b382105/ColumnFLEXPART/resources/Ecosystems_AK_based_split_with_21_and_20_larger.nc"#OekomaskAU_Flexpart_version8_all1x1"#Ecosystems_AK_based_split_with_21_and_20_larger.nc"
+non_equal_region_size = True
+
+
+#Ecosystems, AK split
+area_bioreg = np.array([8.95512935e+13, 4.27021383e+11, 4.01383356e+12, 1.51305732e+12,
+ 4.42067398e+11, 9.81395187e+09, 3.95111921e+10, 3.18183296e+10,
+ 5.52121748e+10, 5.55915961e+10, 5.41460509e+10, 4.29887311e+10,
+ 3.13764949e+10, 1.05335427e+10, 9.31980461e+10, 5.11758810e+10,
+ 4.00158388e+10, 2.99495636e+10, 3.91250878e+10, 4.90667320e+10,
+ 1.95434996e+11, 6.07622615e+10, 6.98377101e+10, 1.77802351e+11,
+1.95969571e+11])
+
+
 #Ecosystemes, AK_split with 21 and 20 larger 
 area_bioreg = np.array([8.95512935e+13, 4.27021383e+11, 4.01383356e+12, 1.51305732e+12,
  4.42067398e+11, 9.81395187e+09, 3.95111921e+10, 3.18183296e+10,
@@ -105,8 +134,7 @@ area_bioreg = np.array([8.95512935e+13, 4.27021383e+11, 4.01383356e+12, 1.513057
  4.00158388e+10, 2.99495636e+10, 3.91250878e+10, 4.90667320e+10,
  1.54614599e+11, 9.65077342e+10, 6.07622615e+10, 6.98377101e+10,
  1.77802351e+11, 1.95969571e+11])
-
-area_bioreg = np.concatenate([area_bioreg, area_bioreg])
+#area_bioreg = np.concatenate([area_bioreg, area_bioreg])
 
 Inversion = CoupledInversion(
     result_pathCO = "/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/predictions3_CO.pkl" ,

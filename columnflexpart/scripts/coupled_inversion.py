@@ -198,6 +198,8 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         flux = select_boundary(flux, self.boundary)
         flux_mean = self.coarsen_data(flux, "mean", self.time_coarse)
         flux_err = self.get_flux_err(flux, flux_mean)
+        print('CO2 flux')
+        print(flux_mean.mean())
         return flux_mean, flux_err
 
     def get_flux_CO(self): 
@@ -263,6 +265,9 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         fluxes = fluxes.assign_coords({'time': ('time', dates), 'latitude': ('latitude', flux.latitude.values), 'longitude': ('longitude', flux.longitude.values)})
         flux_mean = self.coarsen_data(fluxes, "mean", self.time_coarse)
         flux_err = self.get_flux_err(fluxes, flux_mean)
+
+        print('CO flux')
+        print(flux_mean.mean())
 
         # Error of mean calculation
         return flux_mean, flux_err
@@ -392,11 +397,14 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         CO2flux_errs = self.flux_errs.where(self.flux_errs.bioclass < (self.flux_errs.bioclass.max()+1)/2, drop = True)
         CO2err = xr.ones_like(CO2flux_errs)* CO2flux_errs.mean()
         CO2err = CO2err.where(CO2err.bioclass != 0, CO2flux_errs.mean() * factor)
+        print('CO2 err')
+        print(CO2flux_errs.mean())
 
         COflux_errs = self.flux_errs.where(self.flux_errs.bioclass >= (self.flux_errs.bioclass.max()+1)/2, drop = True)
         COerr = xr.ones_like(COflux_errs)* COflux_errs.mean()
         COerr = COerr.where(COerr.bioclass != (self.flux_errs.bioclass.max()+1)/2, COflux_errs.mean() * factor)
-        
+        print('CO err')
+        print(COflux_errs.mean())
         err = xr.concat([CO2err,COerr], dim = "bioclass")
 
         return err
