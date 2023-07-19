@@ -1,15 +1,15 @@
 
-from columnflexpart.scripts.coupled_inversion import CoupledInversion
+from columnflexpart.classes.coupled_inversion import CoupledInversion
 import datetime
 import numpy as np
 import xarray as xr
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
-from columnflexpart.scripts.plot_coupled_inversion_results import plot_spatial_flux_results_or_diff_to_prior
+from columnflexpart.scripts.plot_coupled_inversion_results import plot_spatial_flux_results_or_diff_to_prior, plot_averaging_kernel, plot_input_mask,plot_weekly_concentrations, plot_single_concentrations
 
 def do_everything(savepath, Inversion, molecule_name, mask_datapath_and_name, week_min, week_max, week_num, 
                   err):
-    #class_num = plot_input_mask(savepath,mask_datapath_and_name)
+    class_num = plot_input_mask(savepath,mask_datapath_and_name)
     #plot_prior_spatially(Inversion,molecule_name,week_min, week_max, savepath)
     #l1, l2 = find_two_optimal_lambdas(Inversion,[1e-7,10], 1e-14, err)# 1e-8
     #print(l1)
@@ -24,13 +24,16 @@ def do_everything(savepath, Inversion, molecule_name, mask_datapath_and_name, we
         print('Plotting spatial results')
         plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion,week_min, week_max,l, diff =False)
 
-        print('Plotting averaging kernels')
-        #plot_averaging_kernel(Inversion,molecule_name, l, class_num, week_num,savepath, plot_spatially=False)# class_num
-        #plot_averaging_kernel(Inversion,molecule_name, l, class_num, week_num,savepath, plot_spatially=True,weekly = True)
-        #plot_averaging_kernel(Inversion,molecule_name, l, class_num, week_num,savepath, plot_spatially=True)
-        #print('Plotting concentrations')
-        #calc_concentrations(Inversion,  'CO',l, savepath)
-        #plot_weekly_concentrations(Inversion,'CO',l, savepath)
+        print('Plotting averaging kernels') # not yet working?! CHeck results!!!!!!!!!!!!!!!! 
+        plot_averaging_kernel(Inversion, l, class_num, week_num,savepath, plot_spatially=False)# class_num
+        plot_averaging_kernel(Inversion, l, class_num, week_num,savepath, plot_spatially=True,weekly = True)
+        plot_averaging_kernel(Inversion, l, class_num, week_num,savepath, plot_spatially=True)
+
+        print('Plotting concentrations')
+        plot_single_concentrations(Inversion,  'CO2',l, savepath)
+        plot_single_concentrations(Inversion,  'CO',l, savepath)
+        plot_weekly_concentrations(Inversion,'CO',l, savepath) # ist ziemlich hartgecoded gerade für Dezember!!!!!!!!!!
+        plot_weekly_concentrations(Inversion,'CO2',l, savepath)
 
 
 ######################### adapt stuff from here on ####################################
