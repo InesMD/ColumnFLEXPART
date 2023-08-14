@@ -1,5 +1,5 @@
 
-from columnflexpart.classes.coupled_inversion import CoupledInversion
+from columnflexpart.classes.coupled_inversion import CoupledInversion #_no_corr_no_split_fluxes import CoupledInversion
 import datetime
 import numpy as np
 import xarray as xr
@@ -13,8 +13,9 @@ def do_everything(savepath, Inversion, molecule_name, mask_datapath_and_name, we
     #plot_prior_spatially(Inversion,molecule_name,week_min, week_max, savepath)
     #l1, l2 = find_two_optimal_lambdas(Inversion,[1e-7,10], 1e-14, err)# 1e-8
     #print(l1)
-    l3 = 1e-1
+    l3 = 1e-5
     for l in [l3]:#1, l2]:#,l2,l3]:
+        print('fitting')
         predictions = Inversion.fit(alpha = l, xerr = err) 
         #plot_l_curve(Inversion,err,molecule_name,savepath, l)
 
@@ -25,22 +26,22 @@ def do_everything(savepath, Inversion, molecule_name, mask_datapath_and_name, we
         plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion,week_min, week_max,l, diff =False)
 
         print('Plotting averaging kernels') # not yet working?! CHeck results!!!!!!!!!!!!!!!! 
-        plot_averaging_kernel(Inversion, l, class_num, week_num,savepath, plot_spatially=False)# class_num
-        plot_averaging_kernel(Inversion, l, class_num, week_num,savepath, plot_spatially=True,weekly = True)
-        plot_averaging_kernel(Inversion, l, class_num, week_num,savepath, plot_spatially=True)
+        #plot_averaging_kernel(Inversion, l, class_num, week_num,savepath, plot_spatially=False)# class_num
+        #plot_averaging_kernel(Inversion, l, class_num, week_num,savepath, plot_spatially=True,weekly = True)
+        #plot_averaging_kernel(Inversion, l, class_num, week_num,savepath, plot_spatially=True)
 
         print('Plotting concentrations')
-        plot_single_concentrations(Inversion,  'CO2',l, savepath)
-        plot_single_concentrations(Inversion,  'CO',l, savepath)
-        plot_weekly_concentrations(Inversion,'CO',l, savepath) # ist ziemlich hartgecoded gerade für Dezember!!!!!!!!!!
-        plot_weekly_concentrations(Inversion,'CO2',l, savepath)
+        #plot_single_concentrations(Inversion,  'CO2',l, savepath)
+        #plot_single_concentrations(Inversion,  'CO',l, savepath)
+        #plot_weekly_concentrations(Inversion,'CO',l, savepath) # ist ziemlich hartgecoded gerade für Dezember!!!!!!!!!!
+        #plot_weekly_concentrations(Inversion,'CO2',l, savepath)
 
 
 ######################### adapt stuff from here on ####################################
 
-savepath = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/Images_coupled_Inversion/sectors_not_splitted_no_correlation/12/Ecosystem_based/'
-mask = "/home/b/b382105/ColumnFLEXPART/resources/Ecosystems_AK_based_split_with_21_and_20_larger.nc"#OekomaskAU_Flexpart_version8_all1x1"#Ecosystems_AK_based_split_with_21_and_20_larger.nc"
-non_equal_region_size = True
+savepath = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/Images_coupled_Inversion/sectors_not_splitted_no_correlation/12/Gridded_test_error100/'
+mask = "/home/b/b382105/ColumnFLEXPART/resources/Ecosystems_AK_based_split_with_21_and_20_larger.nc"#OekomaskAU_Flexpart_version8_all1x1"#Ecosystems_AK_based_split_with_21_and_20_larger.nc"#OekomaskAU_Flexpart_version8_all1x1"#Ecosystems_AK_based_split_with_21_and_20_larger.nc"
+non_equal_region_size = False
 
 
 #Ecosystems, AK split
@@ -75,9 +76,12 @@ Inversion = CoupledInversion(
     boundary=[110.0, 155.0, -45.0, -10.0], 
        ) 
 
-err = Inversion.get_prior_flux_errors( non_equal_region_size, area_bioreg)
+print(Inversion.bioclass_mask.values.max())
+Inversion.get_grid_cell_indices_for_final_regions()
 
-do_everything(savepath, Inversion,'CO',mask, 52, 52, 6, err)
+#err = Inversion.get_prior_flux_errors( non_equal_region_size, area_bioreg)
+
+#do_everything(savepath, Inversion,'CO',mask, 52, 52, 6, err)
 #do_everything(savepath, Inversion, 'CO',mask, 1, 1, 6, err)
 
 #FAKTOR 10**-9 und 10**-6 der jetzt bei fit davor passiert ist, habe ich erstmal rausgenommen. Muss ich bei Fit vermutlich nohc einfügen!!!!!!!!!!!!!!!!!
