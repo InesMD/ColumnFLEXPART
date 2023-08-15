@@ -8,7 +8,7 @@ import xarray as xr
 import datetime
 import bayesinverse
 import os
-import tqdm
+from tqdm import tqdm
 import numpy as np 
 import matplotlib.pyplot as plt
 Pathlike = Union[Path, str]
@@ -69,9 +69,9 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         ####
 
         self.time_coord, self.isocalendar = self.get_time_coord(self.time_unit)
-        #self.footprints, self.concentrations, self.concentration_errs = self.get_footprint_and_measurement(self.concentration_key)
+        self.footprints, self.concentrations, self.concentration_errs = self.get_footprint_and_measurement(self.concentration_key)
         self.F = self.get_F_matrix()
-        #self.flux, self.flux_errs = self.get_flux()
+        self.flux, self.flux_errs = self.get_flux() ### brauche ich erstmal nicht, ich bekomme ja Scaling Faktoren raus, also der "prior" ist 1 überall
 
         #self.coords = self.footprints.stack(new=[self.time_coord, *self.spatial_valriables]).new
         #self.footprints_flat = self.footprints.stack(new=[self.time_coord, *self.spatial_valriables])
@@ -261,3 +261,281 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
 
         return F_matrix
 
+    def coarsen_and_cut_flux_and_get_err(self, flux): 
+        flux = select_boundary(flux, self.boundary)
+        flux_mean = self.coarsen_data(flux, "mean", self.time_coarse)
+        flux_err = self.get_flux_err(flux, flux_mean)
+        return flux_mean, flux_err
+
+    def get_flux_CO2(self):
+        #CO2 
+        flux_files = []
+        for date in np.arange(self.min_time.astype("datetime64[D]"), self.stop):
+            date_str = str(date).replace("-", "")
+            flux_files.append(self.flux_pathCO2.parent / (self.flux_pathCO2.name + f"{date_str}.nc"))
+        flux = xr.open_mfdataset(flux_files, drop_variables="time_components").compute()
+
+        flux_bio_fossil = flux.bio_flux_opt + flux.ocn_flux_opt + flux.fossil_flux_imp
+        flux_fire = flux.fire_flux_imp
+        
+        flux_fire_mean, flux_fire_err = self.coarsen_and_cut_flux_and_get_err(flux_fire)
+        flux_bio_fossil_mean, flux_bio_fossil_err = self.coarsen_and_cut_flux_and_get_err(flux_bio_fossil)
+
+        flux_bio_fossil_mean = flux_bio_fossil_mean.assign_coords(bioclass = (flux_fire_mean.bioclass+ flux_fire_mean.bioclass.values.max() + 1 )).rename(dict(bioclass = 'final_regions'))
+        flux_bio_fossil_err = flux_bio_fossil_err.assign_coords(bioclass = (flux_fire_err.bioclass+ flux_fire_err.bioclass.values.max() + 1 )).rename(dict(bioclass = 'final_regions'))
+
+        flux_mean = xr.concat([flux_fire_mean.rename(dict(bioclass = 'final_regions')), flux_bio_fossil_mean], dim = 'final_regions')
+        flux_err = xr.concat([flux_fire_err.rename(dict(bioclass = 'final_regions')), flux_bio_fossil_err], dim = 'final_regions')
+        print(flux_mean)
+        return flux_mean, flux_err
+
+    def get_flux_CO(self): # NOCH NICHT ANGEPASST!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    #CO: 
+        total_flux = xr.DataArray()
+        first_flux = True
+        for year in range(2019,2020): # HARDCODED UNTIL NOW !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            cams_flux_bio = xr.DataArray()
+            cams_flux_ant = xr.Dataset()
+            for sector in ['AIR_v1.1', 'BIO_v3.1', 'ANT_v4.2']:
+                if sector == 'ANT_v4.2':
+                    cams_file = "/CAMS-AU-"+sector+"_carbon-monoxide_"+str(year)+"_sum_regr1x1.nc"
+                    flux_ant_part = xr.open_mfdataset(
+                        str(self.flux_pathCO)+cams_file,
+                        combine="by_coords",
+                        chunks="auto",
+                        )
+                    flux_ant_part = flux_ant_part.assign_coords({'year': ('time', [year*i for i in np.ones(12)])})
+                    flux_ant_part = flux_ant_part.assign_coords({'MonthDate': ('time', [datetime.datetime(year=year, month= i, day = 1) for i in np.arange(1,13)])})
+                    cams_flux_ant = flux_ant_part
+
+                elif sector == 'BIO_v3.1': 
+                    cams_file = "/CAMS-AU-"+sector+"_carbon-monoxide_2019_regr1x1.nc"   
+                    #print(str(self.flux_path)+cams_file)         
+                    flux_bio_part = xr.open_mfdataset(
+                    str(self.flux_pathCO)+cams_file,
+                    combine="by_coords",
+                    chunks="auto",
+                    )      
+                    flux_bio_part = flux_bio_part.emiss_bio.mean('TSTEP')
+                    flux_bio_part = flux_bio_part.assign_coords(dict({'time': ('time',[0,1,2,3,4,5,6,7,8,9,10,11] )}))
+                    flux_bio_part = flux_bio_part.assign_coords({'year': ('time', [year*i for i in np.ones(12)])})
+                    flux_bio_part = flux_bio_part.assign_coords({'MonthDate': ('time', [datetime.datetime(year=year, month= i, day = 1) for i in np.arange(1,13)])})
+                    cams_flux_bio = flux_bio_part                
+            total_flux_yr = (cams_flux_ant['sum'] + cams_flux_bio)/0.02801 # from kg/m^2/s to molCO/m^2/s 
+            if first_flux:
+                    first_flux = False
+                    total_flux = total_flux_yr
+            else:
+                total_flux = xr.concat([total_flux, total_flux_yr], dim = 'time')
+
+        # select flux data for time period given: 
+        total_flux = total_flux.where(total_flux.MonthDate >= pd.to_datetime(self.start), drop = True )
+        total_flux = total_flux.where(total_flux.MonthDate <= pd.to_datetime(self.stop), drop = True )
+
+        #cams_flux = cams_flux[:, :, 1:]
+        flux = select_boundary(total_flux, self.boundary)
+
+        # create new flux dataset with value assigned to every day in range date start and date stop 
+        dates = [pd.to_datetime(self.start)]
+        date = dates[0]
+        while date < pd.to_datetime(self.stop):
+            date += datetime.timedelta(days = 1)
+            dates.append(pd.to_datetime(date))
+        fluxes = xr.DataArray(data = np.zeros((len(dates), len(flux.latitude.values), len(flux.longitude.values))), dims = ['time', 'latitude', 'longitude'])
+        count = 0
+        for i,dt in enumerate(dates): 
+            for m in range(len(flux.MonthDate.values)): # of moths 
+                if dt.month == pd.to_datetime(flux.MonthDate[m].values).month: 
+                #    if bol == True: 
+                    fluxes[i,:,:] =  flux[m,:,:]#/0.02801 
+        
+        fluxes = fluxes.assign_coords({'time': ('time', dates), 'latitude': ('latitude', flux.latitude.values), 'longitude': ('longitude', flux.longitude.values)})
+        flux_mean = self.coarsen_data(fluxes, "mean", self.time_coarse)
+        flux_err = self.get_flux_err(fluxes, flux_mean)
+
+        #print('CO flux')
+        #print(flux_mean.mean())
+
+        # Error of mean calculation
+        return flux_mean, flux_err
+
+
+    def get_flux(self): # to be wrapped together # flux mean has coords bioclass and week 
+        
+        flux_meanCO2, flux_errCO2 = self.get_flux_CO2()
+        flux_meanCO, flux_errCO = self.get_flux_CO2() # err checken!!!!!!!!!!!!!! # ADAPTED _ NEEDS TO BNE CO!!!!!!!!!!!!!!!!!!!!!!!!
+
+        #adapt coordinates and concatenate fluxes
+        flux_meanCO = flux_meanCO.assign_coords(final_regions = ((flux_meanCO.final_regions+ flux_meanCO.final_regions.values.max() + 1)))
+        flux_mean = xr.concat([flux_meanCO2, flux_meanCO], dim = "final_regions")
+    
+        flux_errCO = flux_errCO.assign_coords(final_regions = ((flux_errCO.final_regions+ flux_errCO.final_regions.values.max() + 1)))
+        flux_err = xr.concat([flux_errCO2, flux_errCO], dim = "final_regions")
+        return flux_mean, flux_err
+    
+
+
+    # brauche ich das??????????????????????????????????????????
+    def get_prior_scaling_factors(self):
+        return xr.ones_like(self.flux)
+    
+
+    def get_Cprior_matrix(self): 
+        # ist momentatn ja gleich pro Woche, daher nur für final regions, ohne Wochenkoordinate konsturiert
+        print(self.flux.final_regions.shape)
+        Cprior = xr.DataArray(data = np.zeros((self.flux.final_regions.shape[0], self.flux.final_regions.shape[0])),dims = ["final_regions", "final_regions2"],
+                               coords = dict(final_regions =(["final_regions"], self.flux.final_regions.values), final_regions2 =(["final_regions2"], self.flux.final_regions.values)))
+        n_reg = int(self.bioclass_mask.values.max()) 
+        print(n_reg)
+        print(Cprior)
+        print(Cprior.shape)
+        # set 1 at "block diagonal" - fire CO2 and fire Co2 are max correlated
+        Cprior[:n_reg+1, :n_reg+1] = 1
+        Cprior[n_reg+1:2*(n_reg+1),n_reg+1 :2*(n_reg+1)] = 1
+        Cprior[2*(n_reg+1):3*(n_reg+1), 2*(n_reg+1):3*(n_reg+1)] = 1
+        Cprior[3*(n_reg+1):4*(n_reg+1),3*(n_reg+1) :4*(n_reg+1)] = 1
+
+        # correlate the fires (Co and Co2) with 0.7 (ant and bi onot correlated)
+        Cprior[:n_reg+1,2*(n_reg+1) :3*(n_reg+1)] = 0.7
+        Cprior[2*(n_reg+1) :3*(n_reg+1), :n_reg+1] = 0.7
+        # DImensions cannot be called the same, check with mutliplication that names of coordinates etc fit !!!!!!!!!!!!!!!!!
+
+        #plt.figure()
+        #plt.imshow(Cprior)#Cprior.plot(x = 'final_regions', y = 'final_regions')
+        #plt.savefig('/home/b/b382105/test/ColumnFLEXPART/columnflexpart/scripts/C_prior.png')
+        #plt.close()
+        #print(Cprior)
+
+        return Cprior
+    
+
+    def get_rho_prior_matrix(self, are_weighted_errors): 
+        # area weighted errors are only for the real regions number e.g 30 not the splitted, concatenated ones
+
+    	
+
+
+
+
+        return rho_prior_matrix
+
+
+    def get_prior_flux_errors(self, non_equal_region_size, area_bioreg):
+        # area bioreg: size of one inversion (CO or CO2, not both together)
+        # prior errors
+        if non_equal_region_size == True: 
+            print('per region')
+            err = self.calc_errors_flat_area_weighted_scaled_to_mean_flux(area_bioreg)
+            print('maximum error value: '+str(err.max()))
+        else: 
+            print('not per region')
+            err = self.get_land_ocean_error(1/100000) # adapt CO2 and CO errors separately check 
+            print(err)
+            print('maximum error value: '+str(err.max()))
+        print('Initlaizing done')
+        return err 
+
+    
+###################### muss noch angepasst werden!!!!!!!!!!!!!!!!!!!!!!!!!
+    def get_regression(
+        self,
+        x: Optional[np.ndarray] = None,
+        yerr: Optional[Union[np.ndarray, xr.DataArray, float, list[float]]] = None, 
+        xerr: Optional[Union[np.ndarray, list]] = None,
+        with_prior: Optional[bool] = True,
+        alpha: Optional[float] = None,
+        ) -> bayesinverse.Regression:
+        """Constructs a Regression object from class attributes and inputs 
+
+        Args:
+            x (Optional[np.ndarray], optional): Alternative values for prior. Defaults to None.
+            yerr (Optional[Union[np.ndarray, xr.DataArray, float, list[float]]], optional): Alternative values for y_covariance. Defaults to None.
+            xerr (Optional[Union[np.ndarray, list]], optional): Alternative values for x_covariances. Defaults to None.
+            with_prior (Optional[bool], optional): Switch to use prior. Defaults to True.
+            alpha (Optional[float]): Regulatization value
+
+        Returns:
+            bayesinverse.Regression: Regression model
+        """        
+        concentration_errs = self.concentration_errs.values
+        if not yerr is None:
+            if isinstance(yerr, float):
+                yerr = np.ones_like(concentration_errs) * yerr
+            elif isinstance(yerr, xr.DataArray):
+                if yerr.size == 1:
+                    yerr = np.ones_like(concentration_errs) * yerr.values
+                else:
+                    yerr = yerr.values
+            concentration_errs = yerr
+        
+        flux_errs = self.flux_errs_flat
+        if not xerr is None:
+            if isinstance(xerr, float):
+                xerr = np.ones_like(flux_errs) * xerr
+            if isinstance(xerr, xr.DataArray):
+                if xerr.size == 1:
+                    xerr = np.ones_like(flux_errs) * xerr.values
+                elif xerr.shape == self.flux_errs.shape:
+                    xerr = xerr.stack(new=[self.time_coord, *self.spatial_valriables]).values        
+                else:
+                    xerr.values
+            flux_errs = xerr
+
+        if not x is None:
+            x_prior = x
+        else:
+            x_prior = self.flux_flat.values
+
+        if with_prior:
+            #print(len(concentration_errs.values))
+            self.reg = bayesinverse.Regression(
+                y = self.concentrations.values*1e-6, 
+                K = self.footprints_flat.values, 
+                x_prior = x_prior, 
+                x_covariance = flux_errs**2, 
+                y_covariance = concentration_errs*1e-6**2, 
+                alpha = alpha
+            )
+        else:
+            self.reg = bayesinverse.Regression(
+                y = self.concentrations.values*1e-6, 
+                K = self.footprints_flat.values,
+                alpha = alpha
+            )
+        return self.reg
+
+    def fit(
+        self, 
+        x: Optional[np.ndarray] = None,
+        yerr: Optional[Union[np.ndarray, xr.DataArray, float, list[float]]] = None, 
+        xerr: Optional[Union[np.ndarray, list]] = None,
+        with_prior: Optional[bool] = True,
+        alpha: float = None,
+        ) -> xr.DataArray:
+        """Uses bayesian inversion to estiamte emissions.
+
+        Args:
+            yerr (Optional[list], optional): Can be used instead of loaded errorof measurement. Defaults to None.
+            xerr (Optional[list], optional): Can be used instead of error of the mean of the fluxes. Defaults to None.
+            with_prior (Optional[bool]): Wether to use a prior or not. True strongly recommended. Defaults to True.
+            alpha (Optional[float]): Value to weigth xerr against yerr. Is used as in l curve calculation. Defaults to 1.
+
+        Returns:
+            xr.DataArray: estimated emissions
+        """        
+        _ = self.get_regression(x, yerr, xerr, with_prior, alpha)
+        
+        self.fit_result = self.reg.fit()
+        self.predictions_flat = xr.DataArray(
+            data = self.fit_result[0],
+            dims = ["new"],
+            coords = dict(new=self.coords)
+        )
+        self.predictions = self.predictions_flat.unstack("new")
+        self.prediction_errs_flat = xr.DataArray(
+            data = np.sqrt(np.diag(self.get_posterior_covariance())),
+            dims = ["new"],
+            coords = dict(new=self.coords)
+        )
+        self.prediction_errs = self.prediction_errs_flat.unstack("new")
+        return self.predictions
