@@ -526,9 +526,46 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         print('Initlaizing done')
         return errCO2, errCO 
     
+    def get_non_area_weighted_rho_matrix(self, COfire_error: float, CO2fire_error: float):
+        '''
+        return rho matrix with the given values on the diagonal for CO and CO2 fire. 1 corresponds to a 100% error.
+        '''
+        sample_error = xr.DataArray(data=np.zeros((int(self.bioclass_mask.values.max()),len(self.flux_mean.week.values))),
+                                     coords=dict({ 'bioclass': ('bioclass',np.arange(0,int(self.bioclass_mask.values.max())+1)),
+                                     'week': ('week',self.flux_mean.week.values)})).stack(new=[self.time_coord, *self.spatial_valriables])
+        len_diag_flattened = sample_error.values.shape[0]
+
+        fireCO_diag = np.ones(len_diag_flattened) * COfire_error
+        fireCO_diag[0] = fireCO_diag[0]/10000000 
+        fireCO = np.diag(fireCO_diag)
+
+        fireCO2_diag = np.ones(len_diag_flattened) * CO2fire_error
+        fireCO2_diag[0] = fireCO2_diag[0]/10000000 
+        fireCO2 = np.diag(fireCO2_diag)
+
+        off_diag_fire = np.sqrt(fireCO2_diag*fireCO_diag)
+        off_diag_fire_block = np.diag(off_diag_fire)
+
+        bio_diag =  np.ones(len_diag_flattened)/10000000 
+        bio = np.diag(bio_diag)
+
+        zero_block = np.zeros_like(bio_diag)
+
+        total_left_block = np.concatenate((fireCO2_diag, zero_block, off_diag_fire_block, zero_block), axis = 0)
+        total_middle_left_block = np.concatenate((zero_block, bio, zero_block, zero_block), axis = 0)
+        total_middle_ríght_block = np.concatenate((off_diag_fire_block, zero_block, fireCO_diag, zero_block), axis = 0)
+        total_right_block = np.concatenate((zero_block, zero_block, zero_block, bio), axis = 0)
+
+        total_data = np.concatenate((total_left_block, total_middle_left_block, total_middle_ríght_block, total_right_block), axis = 1)
+        rho_prior = xr.DataArray(data = total_data, dims = ["final_regions", "final_regions2"],
+                               coords = dict(final_regions =(["final_regions"], self.flux_flat.new.values), final_regions2 =(["final_regions2"], self.flux_flat.new.values)))
+   
+        return rho_prior
+
     def get_prior_covariace_matrix(self, non_equal_region_size, area_bioreg): 
-        errCO2, errCO = self.get_prior_flux_errors(non_equal_region_size, area_bioreg)
-        rho = self.get_rho_prior_matrix(errCO2, errCO)
+        #errCO2, errCO = self.get_prior_flux_errors(non_equal_region_size, area_bioreg)
+        #rho = self.get_rho_prior_matrix(errCO2, errCO)
+        rho = self.get_non_area_weighted_rho_matrix(1, 1)
         Cprior = self.get_Cprior_matrix()
         print(self.flux_flat.new.values)
         print('Cprior')
