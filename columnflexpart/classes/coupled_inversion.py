@@ -220,7 +220,8 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         '''
         Constructs F matrix (4 blocks with F1 on "diagonal", otherwise zero blocks)
         '''
-
+        # es fehlt:  multiplikation mit 10 -6 etc, multiplication mit flux pro Co fire pro Woche etc 
+        # pro final region und week einmla mit flux mutliplizieren
         zero_block = xr.zeros_like(xF1_matrix)
         zero_block_left = zero_block.assign_coords(bioclass = ((xF1_matrix.bioclass+ xF1_matrix.bioclass.values.max() + 1)))
         block_left = xr.concat([xF1_matrix,zero_block_left], dim = "bioclass")
@@ -241,7 +242,15 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         
         upper_block = xr.concat([upper_left_block, upper_right_block], dim = 'final_regions')
         lower_block = xr.concat([lower_left_block, lower_right_block], dim = 'final_regions')
-        F_matrix = xr.concat([upper_block, lower_block], dim='bioclass')        
+        
+        F_matrix = xr.concat([upper_block, lower_block], dim='bioclass') 
+
+        flux_grid_with_int = self.flux_grid.rename({'final_regions': 'bioclass'})#.assign_coords(bioclass = ('bioclass',self.flux_grid.final_regions.values.astype(int)))
+        np.set_printoptions(threshold=np.Inf)
+        print(np.array(flux_grid_with_int.bioclass.values[:]))
+        #print(flux_grid_with_int)
+        #print(F_matrix)
+        #print(flux_grid_with_int *F_matrix)      
 
         return F_matrix
 
@@ -254,7 +263,7 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
             #print(i)
             #column = np.zeros((int(self.gridded_mask.values.max())+1,1))
             for index in indices_dict[i]: 
-                F1_matrix[int(index),int(i), :] = 1/len(indices_dict[i])*self.flux_grid[int(index),:]
+                F1_matrix[int(index),int(i), :] = 1/len(indices_dict[i])#*self.flux_grid[int(index),:]
         #print(F1_matrix)
         #plt.imshow(F1_matrix[:,:,:])
         #plt.savefig('/home/b/b382105/test/ColumnFLEXPART/columnflexpart/scripts/F_matrix.png')
@@ -321,10 +330,10 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         flux_fire_mean, flux_fire_eco = self.coarsen_and_cut_flux_and_get_err(flux_fire)
         flux_bio_fossil_mean, flux_bio_fossil_eco = self.coarsen_and_cut_flux_and_get_err(flux_bio_fossil)
 
-        flux_bio_fossil_mean = flux_bio_fossil_mean.assign_coords(bioclass = (flux_fire_mean.bioclass+ flux_fire_mean.bioclass.values.max() + 1 )).rename(dict(bioclass = 'final_regions'))
+        flux_bio_fossil_mean = flux_bio_fossil_mean.assign_coords(bioclass = (flux_fire_mean.bioclass+ flux_fire_mean.bioclass.values.max() + 1 ).astype(int)).rename(dict(bioclass = 'final_regions'))
         flux_mean = xr.concat([flux_fire_mean.rename(dict(bioclass = 'final_regions')), flux_bio_fossil_mean], dim = 'final_regions')
 
-        flux_bio_fossil_eco = flux_bio_fossil_eco.assign_coords(bioclass = (flux_fire_eco.bioclass+ flux_fire_eco.bioclass.values.max() + 1 )).rename(dict(bioclass = 'final_regions'))
+        flux_bio_fossil_eco = flux_bio_fossil_eco.assign_coords(bioclass = (flux_fire_eco.bioclass+ flux_fire_eco.bioclass.values.max() + 1 ).astype(int)).rename(dict(bioclass = 'final_regions'))
         flux_mean_eco = xr.concat([flux_fire_eco.rename(dict(bioclass = 'final_regions')), flux_bio_fossil_eco], dim = 'final_regions')
        
         #flux_bio_fossil_err = flux_bio_fossil_err.assign_coords(bioclass = (flux_fire_err.bioclass+ flux_fire_err.bioclass.values.max() + 1 )).rename(dict(bioclass = 'final_regions'))
@@ -396,8 +405,8 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
 
         flux_mean_bio_ant, flux_bio_ant_eco = self.coarsen_and_cut_flux_and_get_err(fluxes)
         #print(flux_mean_bio_ant)
-        flux_mean_bio_fossil = flux_mean_bio_ant.assign_coords(bioclass = (flux_mean_bio_ant.bioclass+ flux_mean_bio_ant.bioclass.values.max() + 1 )).rename(dict(bioclass = 'final_regions'))
-        flux_bio_fossil_eco = flux_bio_ant_eco.assign_coords(bioclass = (flux_bio_ant_eco.bioclass+ flux_bio_ant_eco.bioclass.values.max() + 1 )).rename(dict(bioclass = 'final_regions'))
+        flux_mean_bio_fossil = flux_mean_bio_ant.assign_coords(bioclass = (flux_mean_bio_ant.bioclass+ flux_mean_bio_ant.bioclass.values.max() + 1 ).astype(int)).rename(dict(bioclass = 'final_regions'))
+        flux_bio_fossil_eco = flux_bio_ant_eco.assign_coords(bioclass = (flux_bio_ant_eco.bioclass+ flux_bio_ant_eco.bioclass.values.max() + 1 ).astype(int)).rename(dict(bioclass = 'final_regions'))
       
         #flux_err_bio_ant2 = flux_err_bio_ant.assign_coords(bioclass = (flux_mean_bio_ant.bioclass+ flux_mean_bio_ant.bioclass.values.max() + 1 )).rename(dict(bioclass = 'final_regions'))
         flux_fire = xr.ones_like(flux_mean_bio_fossil)*10**-11
@@ -426,10 +435,11 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         flux_meanCO_grid, flux_meanCO_eco = self.get_flux_CO() # err checken!!!!!!!!!!!!!! # ADAPTED _ NEEDS TO BNE CO!!!!!!!!!!!!!!!!!!!!!!!!
 
         #adapt coordinates and concatenate fluxes
-        flux_meanCO_grid = flux_meanCO_grid.assign_coords(final_regions = ((flux_meanCO_grid.final_regions+ flux_meanCO_grid.final_regions.values.max() + 1)))
+        flux_meanCO_grid = flux_meanCO_grid.assign_coords(final_regions = ((flux_meanCO_grid.final_regions+ flux_meanCO_grid.final_regions.values.max() + 1).astype(int)))
         flux_mean_grid = xr.concat([flux_meanCO2_grid, flux_meanCO_grid], dim = "final_regions")
+        flux_mean_grid = flux_mean_grid.assign_coords(final_regions = ('final_regions', flux_mean_grid.final_regions.values.astype(int)))
 
-        flux_meanCO_eco = flux_meanCO_eco.assign_coords(final_regions = ((flux_meanCO_eco.final_regions+ flux_meanCO_eco.final_regions.values.max() + 1)))
+        flux_meanCO_eco = flux_meanCO_eco.assign_coords(final_regions = ((flux_meanCO_eco.final_regions+ flux_meanCO_eco.final_regions.values.max() + 1).astype(int)))
         flux_mean_eco = xr.concat([flux_meanCO2_eco, flux_meanCO_eco], dim = "final_regions")
         
         #flux_errCO = flux_errCO.assign_coords(final_regions = ((flux_errCO.final_regions+ flux_errCO.final_regions.values.max() + 1)))
