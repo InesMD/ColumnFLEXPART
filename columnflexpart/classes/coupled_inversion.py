@@ -607,10 +607,12 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         len_diag_flattened = sample_error.values.shape[0]
         print(len_diag_flattened)
 
+        len_diag_flattened = int(self.bioclass_mask.values.max()+1)
+
         fireCO_diag = np.ones(len_diag_flattened) * COfire_error
         fireCO_diag[0] = fireCO_diag[0]/10000000 
         fireCO = np.diag(fireCO_diag)
-        print(fireCO_diag)
+        print(fireCO)
         fireCO2_diag = np.ones(len_diag_flattened) * CO2fire_error
         fireCO2_diag[0] = fireCO2_diag[0]/10000000 
         fireCO2 = np.diag(fireCO2_diag)
@@ -628,9 +630,32 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         total_middle_ríght_block = np.concatenate((off_diag_fire_block, zero_block, fireCO, zero_block), axis = 0)
         total_right_block = np.concatenate((zero_block, zero_block, zero_block, bio), axis = 0)
 
-        total_data = np.concatenate((total_left_block, total_middle_left_block, total_middle_ríght_block, total_right_block), axis = 1)
+        data_weekly = np.concatenate((total_left_block, total_middle_left_block, total_middle_ríght_block, total_right_block), axis = 1)
+        
+        if len(self.flux_eco.week.values) == 6: 
+            total_data = np.block([[data_weekly,data_weekly, data_weekly, data_weekly, data_weekly,data_weekly], 
+                     [data_weekly,data_weekly, data_weekly, data_weekly, data_weekly,data_weekly],
+                     [data_weekly,data_weekly, data_weekly, data_weekly, data_weekly,data_weekly],
+                    [data_weekly,data_weekly, data_weekly, data_weekly, data_weekly,data_weekly],
+                    [data_weekly,data_weekly, data_weekly, data_weekly, data_weekly,data_weekly],
+                     [data_weekly,data_weekly, data_weekly, data_weekly, data_weekly,data_weekly]])
+        elif len(self.flux_eco.week.values) == 5: 
+            total_data = np.block([[data_weekly,data_weekly, data_weekly, data_weekly, data_weekly],
+                         [data_weekly,data_weekly, data_weekly, data_weekly, data_weekly],
+                         [data_weekly,data_weekly, data_weekly, data_weekly, data_weekly],
+                         [data_weekly,data_weekly, data_weekly, data_weekly, data_weekly],
+                         [data_weekly,data_weekly, data_weekly, data_weekly, data_weekly]])
+        elif len(self.flux_eco.week.values) ==4 : 
+            total_data = np.block([[data_weekly,data_weekly, data_weekly, data_weekly],
+                         [data_weekly,data_weekly, data_weekly, data_weekly],
+                         [data_weekly,data_weekly, data_weekly, data_weekly],
+                        [data_weekly,data_weekly, data_weekly, data_weekly]])
+        else: 
+            raise ValueError('Cprior matrix cannot be constructed because number of weeks is not 4,5 or 6')
+        print(total_data[total_data!= 0])
         rho_prior = xr.DataArray(data = total_data, dims = ["final_regions", "final_regions2"],
                                coords = dict(final_regions =(["final_regions"], self.flux_eco_flat.new.values), final_regions2 =(["final_regions2"], self.flux_eco_flat.new.values)))
+        print(rho_prior)
         self.rho_prior = rho_prior
         return rho_prior
 
