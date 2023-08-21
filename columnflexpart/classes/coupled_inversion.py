@@ -83,8 +83,9 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         self.rho_prior = None
         self.K = self.multiply_H_and_F()
         #self.coords = self.K.stack(new=[self.time_coord, *self.spatial_valriables]).new
-        self.footprints_flat = self.K.stack(new=[self.time_coord, *self.final_spatial_variable])
+        self.footprints_flat = self.K[:,0,:]#.stack(new=[self.time_coord, *self.final_spatial_variable])
         self.flux_errs_flat = self.get_prior_covariace_matrix(self.non_equal_region_size, self.area_bioreg)# self.flux_errs.stack(new=[self.time_coord, *self.spatial_valriables])
+        self.coords = self.flux_eco.rename(dict(final_regions = 'new')).new#assign_coords(new = ('new', self.flux_eco.final_regions.values)).new
 
     def get_gridded_mask(self) -> xr.DataArray:
         mask = xr.load_dataset("/home/b/b382105/ColumnFLEXPART/resources/OekomaskAU_Flexpart_version8_all1x1")["bioclass"]
@@ -724,16 +725,16 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         if not x is None:
             x_prior = x
         else:
-            x_prior = np.ones(len(self.flux_eco_flat.values))
+            x_prior = np.ones(104)#len(self.flux_eco_flat.values))
 
         if with_prior:
             #print(len(concentration_errs.values))
             self.reg = bayesinverse.Regression(
-                y = self.concentrations.values, 
+                y = self.concentrations[-2:].values, 
                 K = self.footprints_flat.values, 
                 x_prior = x_prior, 
-                x_covariance = flux_errs,#**2, 
-                y_covariance = concentration_errs**2, 
+                x_covariance = flux_errs[:104, :104],#**2, 
+                y_covariance = concentration_errs[-2:]**2, 
                 alpha = alpha
             )
         else:
@@ -771,11 +772,11 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
             dims = ["new"],
             coords = dict(new=self.coords)
         )
-        self.predictions = self.predictions_flat.unstack("new")
+        #self.predictions = self.predictions_flat.unstack("new")
         self.prediction_errs_flat = xr.DataArray(
             data = np.sqrt(np.diag(self.get_posterior_covariance())),
             dims = ["new"],
             coords = dict(new=self.coords)
         )
-        self.prediction_errs = self.prediction_errs_flat.unstack("new")
+        #self.prediction_errs = self.prediction_errs_flat.unstack("new")
         return self.predictions
