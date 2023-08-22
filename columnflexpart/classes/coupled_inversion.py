@@ -27,7 +27,8 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         bioclass_path: Pathlike,
         month: str,
         date_min: datetime.datetime,
-        area_bioreg, 
+        area_bioreg,
+        week: str, 
         non_equal_region_size = True,  
         date_max = datetime.datetime, 
         time_coarse: Optional[int] = None, 
@@ -60,6 +61,7 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         self.data_outside_month = data_outside_month
         self.area_bioreg = area_bioreg
         self.non_equal_region_size = non_equal_region_size
+        self.week = week
 
         #nötig? 
         self.min_time = None
@@ -83,8 +85,11 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         self.rho_prior = None
         self.K = self.multiply_H_and_F()
         #self.coords = self.K.stack(new=[self.time_coord, *self.spatial_valriables]).new
-        self.footprints_flat = self.K[:,0,:]#.stack(new=[self.time_coord, *self.final_spatial_variable])
+        print(self.K.week == self.week)
+        self.footprints_flat = self.K[:,self.K.week == self.week,:].squeeze()#.stack(new=[self.time_coord, *self.final_spatial_variable])
+        print(self.footprints_flat)
         self.flux_errs_flat = self.get_prior_covariace_matrix(self.non_equal_region_size, self.area_bioreg)# self.flux_errs.stack(new=[self.time_coord, *self.spatial_valriables])
+        #print(self.flux_errs_flat)
         self.coords = self.flux_eco.rename(dict(final_regions = 'new')).new#assign_coords(new = ('new', self.flux_eco.final_regions.values)).new
 
     def get_gridded_mask(self) -> xr.DataArray:
@@ -509,6 +514,7 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         Cprior[2*(n_reg+1) :3*(n_reg+1), :n_reg+1] = 0.7
         #print(Cprior[np.where(Cprior!=0)])
         # DImensions cannot be called the same, check with mutliplication that names of coordinates etc fit !!!!!!!!!!!!!!!!!
+        '''
         if len(self.flux_eco.week.values) == 6: 
             C = np.block([[Cprior, Cprior, Cprior, Cprior, Cprior,Cprior], 
                      [Cprior, Cprior, Cprior, Cprior, Cprior,Cprior],
@@ -529,6 +535,7 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
                          [Cprior, Cprior, Cprior, Cprior]])
         else: 
             raise ValueError('Cprior matrix cannot be constructed because number of weeks is not 4,5 or 6')
+        '''
         #plt.figure()
         #plt.imshow(Cprior)#Cprior.plot(x = 'final_regions', y = 'final_regions')
         #plt.savefig('/home/b/b382105/test/ColumnFLEXPART/columnflexpart/scripts/C_prior.png')
@@ -537,9 +544,13 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         #print(Cprior[np.where(Cprior!=0)])
         #print(C.shape)
         #print(self.flux_eco_flat.new.values)
-        Cprior = xr.DataArray(data = C ,dims = ["final_regions", "final_regions2"],
-                               coords = dict(final_regions =(["final_regions"], self.flux_eco_flat.new.values), 
-                                             final_regions2 =(["final_regions2"], self.flux_eco_flat.new.values)))
+        #Cprior = xr.DataArray(data = C ,dims = ["final_regions", "final_regions2"],
+        #                       coords = dict(final_regions =(["final_regions"], self.flux_eco_flat.new.values), 
+        #                                     final_regions2 =(["final_regions2"], self.flux_eco_flat.new.values)))
+        
+        Cprior = xr.DataArray(data = Cprior ,dims = ["final_regions", "final_regions2"],
+                            coords = dict(final_regions =(["final_regions"], self.footprints_flat.final_regions.values), 
+                                        final_regions2 =(["final_regions2"],  self.footprints_flat.final_regions.values)))
         #print(Cprior.isnull())
         self.Cprior = Cprior
         return Cprior
@@ -632,7 +643,7 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         total_right_block = np.concatenate((zero_block, zero_block, zero_block, bio), axis = 0)
 
         data_weekly = np.concatenate((total_left_block, total_middle_left_block, total_middle_ríght_block, total_right_block), axis = 1)
-        
+        '''
         if len(self.flux_eco.week.values) == 6: 
             total_data = np.block([[data_weekly,data_weekly, data_weekly, data_weekly, data_weekly,data_weekly], 
                      [data_weekly,data_weekly, data_weekly, data_weekly, data_weekly,data_weekly],
@@ -653,9 +664,14 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
                         [data_weekly,data_weekly, data_weekly, data_weekly]])
         else: 
             raise ValueError('Cprior matrix cannot be constructed because number of weeks is not 4,5 or 6')
-        print(total_data[total_data!= 0])
-        rho_prior = xr.DataArray(data = total_data, dims = ["final_regions", "final_regions2"],
-                               coords = dict(final_regions =(["final_regions"], self.flux_eco_flat.new.values), final_regions2 =(["final_regions2"], self.flux_eco_flat.new.values)))
+        '''
+        #print(total_data[total_data!= 0])
+        #rho_prior = xr.DataArray(data = total_data, dims = ["final_regions", "final_regions2"],
+        #                       coords = dict(final_regions =(["final_regions"], self.flux_eco_flat.new.values), final_regions2 =(["final_regions2"], self.flux_eco_flat.new.values)))
+        rho_prior = xr.DataArray(data = data_weekly, dims = ["final_regions", "final_regions2"],
+                               coords = dict(final_regions =(["final_regions"], self.footprints_flat.final_regions.values),
+                                              final_regions2 =(["final_regions2"], self.footprints_flat.final_regions.values)))
+        
         print(rho_prior)
         self.rho_prior = rho_prior
         return rho_prior
@@ -725,16 +741,18 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         if not x is None:
             x_prior = x
         else:
-            x_prior = np.ones(104)#len(self.flux_eco_flat.values))
-
+            x_prior = np.ones(len(self.area_bioreg)*4)
+        #print(x_prior)
+        #print(self.footprints_flat)
+        #print(flux_errs)
         if with_prior:
             #print(len(concentration_errs.values))
             self.reg = bayesinverse.Regression(
-                y = self.concentrations[-2:].values, 
+                y = self.concentrations.values, 
                 K = self.footprints_flat.values, 
                 x_prior = x_prior, 
-                x_covariance = flux_errs[:104, :104],#**2, 
-                y_covariance = concentration_errs[-2:]**2, 
+                x_covariance = flux_errs,#**2, 
+                y_covariance = concentration_errs**2, 
                 alpha = alpha
             )
         else:
