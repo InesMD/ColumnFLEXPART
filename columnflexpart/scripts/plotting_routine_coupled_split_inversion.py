@@ -195,43 +195,78 @@ def plot_input_mask(savepath,datapath_and_name, selection= None):
 
 
 
-def calc_concentrations(Inversion, molecule_name,alpha, savepath):
+def calc_concentrations(Inversion, pred_fire, pred_bio, flux_fire, flux_bio, molecule_name,alpha, savepath):
     'for either CO or CO2 not both at the same time'
     datapath_predictions = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/'
     predictions_CO2, predictions_CO = Inversion.select_relevant_times()
     if molecule_name == 'CO':
         ds = predictions_CO
         factor = 10**9 
-        predictions = Inversion.predictions.where(Inversion.predictions.bioclass>= Inversion.predictions.bioclass.values.max()/2-1, drop = True)
-        footprints = Inversion.footprints.where((Inversion.footprints.bioclass>= Inversion.footprints.bioclass.values.max()/2-1)&
-                                                (Inversion.footprints.measurement>= Inversion.footprints.measurement.shape[0]/2), drop = True)
+        #predictions = Inversion.predictions.where(Inversion.predictions.bioclass>= Inversion.predictions.bioclass.values.max()/2-1, drop = True)
+        footprints_bio = Inversion.K.where((Inversion.K.final_regions>= Inversion.K.final_regions.values.max()*3/4)&
+                                                (Inversion.K.measurement>= Inversion.K.measurement.shape[0]/2)&
+                                                (Inversion.K.week == Inversion.week), drop = True).rename(dict(final_regions = 'bioclass'))
+
+        footprints_fire = Inversion.K.where((Inversion.K.final_regions>= Inversion.K.final_regions.values.max()/2)&
+                                            (Inversion.K.final_regions< Inversion.K.final_regions.values.max()*3/4)&
+                                        (Inversion.K.measurement>= Inversion.K.measurement.shape[0]/2)&
+                                        (Inversion.K.week == Inversion.week), drop = True).rename(dict(final_regions = 'bioclass'))
+        print(footprints_fire)
+        print(footprints_bio)
+        
     elif molecule_name =='CO2': 
         ds = predictions_CO2
         factor = 10**6  
-        predictions = Inversion.predictions.where(Inversion.predictions.bioclass< Inversion.predictions.bioclass.values.max()/2-1, drop = True)
-        footprints= Inversion.footprints.where((Inversion.footprints.bioclass< Inversion.footprints.bioclass.values.max()/2-1)&
-                                               (Inversion.footprints.measurement< Inversion.footprints.measurement.shape[0]/2), drop = True)
+        footprints_fire = Inversion.K.where((Inversion.K.final_regions< Inversion.K.final_regions.values.max()/4)&
+                                (Inversion.K.measurement>= Inversion.K.measurement.shape[0]/2)&
+                                (Inversion.K.week == Inversion.week), drop = True).rename(dict(final_regions = 'bioclass'))
+        print(footprints_fire)
         
-    footprints_flat = footprints.stack(new=[Inversion.time_coord, *Inversion.spatial_valriables])
-    predictions_flat = predictions.stack(new=[Inversion.time_coord, *Inversion.spatial_valriables])
-    concentration_results = footprints_flat.values*predictions_flat.values*factor
-    conc_sum = concentration_results.sum(axis = 1)
-    conc_tot = conc_sum + ds['background_inter']
-    return conc_tot , ds
+        footprints_bio = Inversion.K.where((Inversion.K.final_regions>= Inversion.K.final_regions.values.max()/4)&
+                                    (Inversion.K.final_regions< Inversion.K.final_regions.values.max()/2)&
+                                (Inversion.K.measurement>= Inversion.K.measurement.shape[0]/2)&
+                                (Inversion.K.week == Inversion.week), drop = True).rename(dict(final_regions = 'bioclass'))
+        
 
-def plot_single_concentrations(Inversion, molecule_name,alpha, savepath): 
+        #predictions = Inversion.predictions.where(Inversion.predictions.bioclass< Inversion.predictions.bioclass.values.max()/2-1, drop = True)
+
+    footprints_bio_flat = footprints_bio.stack(new=[Inversion.time_coord, *Inversion.spatial_valriables])
+    footprints_fire_flat = footprints_fire.stack(new=[Inversion.time_coord, *Inversion.spatial_valriables])
+    #print(pred_fire)
+    #predictions_fire_flat = pred_fire#stack(new=[Inversion.time_coord, *Inversion.spatial_valriables])
+    #predictions_bio_flat = pred_bio.stack(new=[Inversion.time_coord, *Inversion.spatial_valriables])    
+    #print(flux_bio.squeeze(dim='week').drop('week'))
+    print(flux_bio.shape)
+    print(pred_bio.shape)
+    concentration_results_bio = footprints_bio_flat.values*pred_bio.values*factor*flux_bio.squeeze(dim='week').drop('week').values
+    concentration_results_fire = footprints_fire_flat.values*pred_fire.values*factor*flux_fire.squeeze(dim='week').drop('week').values
+
+    conc_bio_sum = concentration_results_bio.sum(axis = 1)
+    conc_fire_sum = concentration_results_fire.sum(axis = 1)
+
+    conc_bio_tot = conc_bio_sum + ds['background_inter']
+    conc_fire_tot = conc_fire_sum + ds['background_inter']
+    print(conc_bio_sum)
+    print(conc_fire_sum)
+
+
+    return conc_fire_tot , conc_bio_tot, ds
+
+def plot_single_concentrations(Inversion, pred_fire, pred_bio,flux_fire, flux_bio, molecule_name, alpha, savepath): 
     if molecule_name == 'CO':
         y = 35
     elif molecule_name == 'CO2': 
         y = 407
-    else: 
-        Exception('Molecule name not defined! Use CO or CO2 only')
-    conc_tot, ds = calc_concentrations(Inversion, molecule_name,alpha, savepath)
-
+    else:
+        raise Exception('Molecule name not defined, only Co and CO2 allowed')
+    conc_tot_fire, conc_tot_bio, ds = calc_concentrations(Inversion, pred_fire, pred_bio, flux_fire, flux_bio,molecule_name,alpha, savepath)
+    #print(conc_tot_fire)
+    #print(conc_tot_bio)
     plt.rcParams.update({'font.size':18})   
     plt.rcParams.update({'errorbar.capsize': 5})
     fig, (ax, ax2) = plt.subplots(nrows = 2, sharex = True, gridspec_kw={'height_ratios': [4, 1]},figsize = (12,8))
-    df = pd.DataFrame(data =conc_tot.values, columns = ['conc'])
+    df = pd.DataFrame(data =conc_tot_fire.values, columns = ['conc_fire'])
+    df.insert(loc = 1, column ='conc_bio', value = conc_tot_bio.values)
     df.insert(loc = 1, column = 'time', value = ds['time'])
     df.insert(loc = 1, column = 'measurement_uncertainty', value = ds['measurement_uncertainty'])
     df.insert(loc = 1, column = 'xco2_measurement', value = ds['xco2_measurement'])
@@ -241,7 +276,8 @@ def plot_single_concentrations(Inversion, molecule_name,alpha, savepath):
     ds.plot(x='time', y='xco2_measurement',marker='.',ax=ax, markersize = 7,linestyle='None',color = 'dimgrey',label= 'Measurement')#yerr = 'measurement_uncertainty', 
     #plt.fill_between(df['time'],df['xco2_measurement']-df['measurement_uncertainty'],
     #                 df['xco2_measurement']+df['measurement_uncertainty'],color = 'lightgrey' )
-    df.plot(x = 'time', y = 'conc',marker = '.', ax = ax, markersize = 7,linestyle='None',color = 'red',label = 'Model posterior')
+    df.plot(x = 'time', y = 'conc_fire',marker = '.', ax = ax, markersize = 7,linestyle='None',color = 'red',label = 'Model posterior fire')
+    df.plot(x = 'time', y = 'conc_bio',marker = '.', ax = ax, markersize = 7,linestyle='None',color = 'darkred',label = 'Model posterior bio,fossil')
     ds.plot(x='time', y='xco2_inter', marker='.', ax = ax,markersize = 7,linestyle='None',color = 'salmon', label='Model prior')
     ax.legend()
     ax.set_xticks([datetime.datetime(year =2019, month = 12, day = 1),datetime.datetime(year =2019, month = 12, day = 5), datetime.datetime(year =2019, month = 12, day = 10), datetime.datetime(year =2019, month = 12, day = 15),
