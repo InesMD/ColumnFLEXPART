@@ -60,6 +60,7 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         self.concentration_key = concentration_key
         self.data_outside_month = data_outside_month
         self.area_bioreg = area_bioreg
+        self.number_of_reg = len(area_bioreg)
         self.non_equal_region_size = non_equal_region_size
         self.week = week
 
@@ -80,6 +81,7 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         self.flux_grid, self.flux_eco = self.get_flux() ### brauche ich erstmal nicht, ich bekomme ja Scaling Faktoren raus, also der "prior" ist 1 überall
         self.flux_grid_flat = self.flux_grid.stack(new=[self.time_coord, *self.final_spatial_variable])
         self.flux_eco_flat = self.flux_eco.stack(new=[self.time_coord, *self.final_spatial_variable])
+        #self.flux_eco_co2_fire, self.flux_eco_co2_bio, self.flux_eco_co_fire, self.flux_eco_co_bio = self.split_eco_flux()
         self.F = self.get_F_matrix()
         self.Cprior = None
         self.rho_prior = None
@@ -383,11 +385,15 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
                     flux_bio_part = flux_bio_part.assign_coords({'MonthDate': ('time', [datetime.datetime(year=year, month= i, day = 1) for i in np.arange(1,13)])})
                     cams_flux_bio = flux_bio_part                
             total_flux_yr = (cams_flux_ant['sum'] + cams_flux_bio)/0.02801 # from kg/m^2/s to molCO/m^2/s 
+            #total_flux_yr = (cams_flux_ant['sum'] )/0.02801 # from kg/m^2/s to molCO/m^2/s 
+            cams_flux_bio_yr = cams_flux_bio/0.02801
             if first_flux:
                     first_flux = False
                     total_flux = total_flux_yr
+                    bio_flux = cams_flux_bio_yr
             else:
                 total_flux = xr.concat([total_flux, total_flux_yr], dim = 'time')
+                bio_flux =  xr.concat([bio_flux, cams_flux_bio_yr], dim = 'time')
 
         # select flux data for time period given: 
         total_flux = total_flux.where(total_flux.MonthDate >= pd.to_datetime(self.start), drop = True )
@@ -412,10 +418,47 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         
         fluxes = fluxes.assign_coords({'time': ('time', dates), 'latitude': ('latitude', flux.latitude.values), 'longitude': ('longitude', flux.longitude.values)})
 
+        cams_flux_bio = bio_flux
+        '''
+        ########################### added to test bio flux as prior
+        cams_flux_bio = cams_flux_bio.where(cams_flux_bio.MonthDate >= pd.to_datetime(self.start), drop = True )
+        cams_flux_bio= cams_flux_bio.where(cams_flux_bio.MonthDate <= pd.to_datetime(self.stop), drop = True )
+
+        #cams_flux = cams_flux[:, :, 1:]
+        bio_flux = select_boundary(bio_flux, self.boundary)
+
+        # create new flux dataset with value assigned to every day in range date start and date stop 
+        dates = [pd.to_datetime(self.start)]
+        date = dates[0]
+        while date < pd.to_datetime(self.stop):
+            date += datetime.timedelta(days = 1)
+            dates.append(pd.to_datetime(date))
+        bio_fluxes = xr.DataArray(data = np.zeros((len(dates), len(bio_flux.latitude.values), len(flux.longitude.values))), dims = ['time', 'latitude', 'longitude'])
+        count = 0
+        for i,dt in enumerate(dates): 
+            for m in range(len(bio_flux.MonthDate.values)): # of moths 
+                if dt.month == pd.to_datetime(bio_flux.MonthDate[m].values).month: 
+                #    if bol == True: 
+                    bio_fluxes[i,:,:] =  bio_flux[m,:,:]#/0.02801 
+        
+        bio_fluxes = bio_fluxes.assign_coords({'time': ('time', dates), 'latitude': ('latitude', bio_flux.latitude.values), 
+                                               'longitude': ('longitude', bio_flux.longitude.values)})
+
+
+        '''
+        ############################################################
+
         flux_mean_bio_ant, flux_bio_ant_eco = self.coarsen_and_cut_flux_and_get_err(fluxes)
         #print(flux_mean_bio_ant)
-        flux_fire = xr.ones_like(flux_mean_bio_ant).rename(dict(bioclass = 'final_regions'))*10**-11
-        flux_fire_eco = xr.ones_like(flux_bio_ant_eco).rename(dict(bioclass = 'final_regions'))*10**-11
+        #flux_mean_bio, flux_mean_bio_eco = self.coarsen_and_cut_flux_and_get_err(bio_fluxes)
+        flux_fire = xr.ones_like(flux_mean_bio_ant).rename(dict(bioclass = 'final_regions'))*flux_mean_bio_ant.mean()*10**-3
+        #flux_fire[0] = flux_fire[0]*10**-7
+        flux_fire_eco = xr.ones_like(flux_bio_ant_eco).rename(dict(bioclass = 'final_regions'))*flux_mean_bio_ant.mean()*10**-3
+        #flux_fire_eco[0] = flux_fire_eco[0]*10**-7
+        #flux_fire_eco = flux_fire_eco.assign_coords(bioclass = (flux_fire_eco.bioclass).astype(int)).rename(dict(bioclass = 'final_regions'))
+        #flux_fire = flux_fire.assign_coords(bioclass = (flux_fire.bioclass).astype(int)).rename(dict(bioclass = 'final_regions'))
+        print(flux_fire_eco)
+        print(flux_mean_bio_ant.mean())
 
         flux_mean_bio_fossil = flux_mean_bio_ant.assign_coords(bioclass = (flux_mean_bio_ant.bioclass+ flux_mean_bio_ant.bioclass.values.max() + 1 ).astype(int)).rename(dict(bioclass = 'final_regions'))
         flux_bio_fossil_eco = flux_bio_ant_eco.assign_coords(bioclass = (flux_bio_ant_eco.bioclass+ flux_bio_ant_eco.bioclass.values.max() + 1 ).astype(int)).rename(dict(bioclass = 'final_regions'))
@@ -462,6 +505,7 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         return flux_mean_grid, flux_mean_eco#, flux_err
     
 
+   
     # brauche ich das??????????????????????????????????????????
     def get_prior_scaling_factors(self):
         return xr.ones_like(self.flux_eco)
