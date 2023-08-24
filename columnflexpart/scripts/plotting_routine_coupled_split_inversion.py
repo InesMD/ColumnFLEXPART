@@ -72,10 +72,6 @@ def plot_prior_spatially(Inversion, flux, name, idx, savepath):
 
 
 
-
-
-
-
 def plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion, predictions,flux, name, idx, alpha, diff =False):
     factor = 12*10**6
     plt.rcParams.update({'font.size':15})   
@@ -194,6 +190,15 @@ def plot_input_mask(savepath,datapath_and_name, selection= None):
     return len(set(ds.bioclass.values.flatten()))
 
 
+def multiply_footprints_with_fluxes_for_concentrations(Inversion, flux, footprints, factor, background):
+
+    footprints_flat = footprints.stack(new=[Inversion.time_coord, *Inversion.spatial_valriables])
+    concentration_results = footprints_flat.values*factor*flux.values
+    conc_sum = concentration_results.sum(axis = 1)
+    conc_tot = conc_sum + background
+
+    return conc_tot
+    
 
 def calc_concentrations(Inversion, pred_fire, pred_bio, flux_fire, flux_bio, molecule_name,alpha, savepath):
     'for either CO or CO2 not both at the same time'
@@ -211,75 +216,50 @@ def calc_concentrations(Inversion, pred_fire, pred_bio, flux_fire, flux_bio, mol
                                             (Inversion.K.final_regions< Inversion.K.final_regions.values.max()*3/4)&
                                         (Inversion.K.measurement>= Inversion.K.measurement.shape[0]/2)&
                                         (Inversion.K.week == Inversion.week), drop = True).rename(dict(final_regions = 'bioclass'))
-        print(footprints_fire)
-        print(footprints_bio)
         
     elif molecule_name =='CO2': 
         ds = predictions_CO2
         factor = 10**6  
         footprints_fire = Inversion.K.where((Inversion.K.final_regions< Inversion.K.final_regions.values.max()/4)&
-                                (Inversion.K.measurement>= Inversion.K.measurement.shape[0]/2)&
+                                (Inversion.K.measurement< Inversion.K.measurement.shape[0]/2)&
                                 (Inversion.K.week == Inversion.week), drop = True).rename(dict(final_regions = 'bioclass'))
-        print(footprints_fire)
         
         footprints_bio = Inversion.K.where((Inversion.K.final_regions>= Inversion.K.final_regions.values.max()/4)&
                                     (Inversion.K.final_regions< Inversion.K.final_regions.values.max()/2)&
-                                (Inversion.K.measurement>= Inversion.K.measurement.shape[0]/2)&
+                                (Inversion.K.measurement< Inversion.K.measurement.shape[0]/2)&
                                 (Inversion.K.week == Inversion.week), drop = True).rename(dict(final_regions = 'bioclass'))
-        
 
-        #predictions = Inversion.predictions.where(Inversion.predictions.bioclass< Inversion.predictions.bioclass.values.max()/2-1, drop = True)
+    conc_sum_bio = multiply_footprints_with_fluxes_for_concentrations(Inversion, flux_bio.squeeze(dim='week').drop('week')*pred_bio, 
+                                                                      footprints_bio, factor, ds['background_inter'])
+    
+    conc_sum_fire = multiply_footprints_with_fluxes_for_concentrations(Inversion, flux_fire.squeeze(dim='week').drop('week')*pred_fire, 
+                                                                    footprints_fire, factor, ds['background_inter'])
+    conc_sum_bio_prior = multiply_footprints_with_fluxes_for_concentrations(Inversion, flux_bio.squeeze(dim='week').drop('week'), 
+                                                                    footprints_bio, factor, ds['background_inter'])
+    conc_sum_fire_prior = multiply_footprints_with_fluxes_for_concentrations(Inversion, flux_fire.squeeze(dim='week').drop('week'), 
+                                                                    footprints_fire, factor, ds['background_inter'])
 
-    footprints_bio_flat = footprints_bio.stack(new=[Inversion.time_coord, *Inversion.spatial_valriables])
-    footprints_fire_flat = footprints_fire.stack(new=[Inversion.time_coord, *Inversion.spatial_valriables])
-    #print(pred_fire)
-    #predictions_fire_flat = pred_fire#stack(new=[Inversion.time_coord, *Inversion.spatial_valriables])
-    #predictions_bio_flat = pred_bio.stack(new=[Inversion.time_coord, *Inversion.spatial_valriables])    
-    #print(flux_bio.squeeze(dim='week').drop('week'))
-    print(flux_bio.shape)
-    print(pred_bio.shape)
-    concentration_results_bio = footprints_bio_flat.values*pred_bio.values*factor*flux_bio.squeeze(dim='week').drop('week').values
-    concentration_results_fire = footprints_fire_flat.values*pred_fire.values*factor*flux_fire.squeeze(dim='week').drop('week').values
+    return conc_sum_fire , conc_sum_bio, conc_sum_fire_prior, conc_sum_bio_prior, ds
 
-    conc_bio_sum = concentration_results_bio.sum(axis = 1)
-    conc_fire_sum = concentration_results_fire.sum(axis = 1)
-
-    conc_bio_tot = conc_bio_sum + ds['background_inter']
-    conc_fire_tot = conc_fire_sum + ds['background_inter']
-    print(conc_bio_sum)
-    print(conc_fire_sum)
-
-
-    return conc_fire_tot , conc_bio_tot, ds
-
-def plot_single_concentrations(Inversion, pred_fire, pred_bio,flux_fire, flux_bio, molecule_name, alpha, savepath): 
+def plot_fire_bio_concentrations(df, ds, savepath, alpha, molecule_name): 
     if molecule_name == 'CO':
         y = 35
     elif molecule_name == 'CO2': 
         y = 407
     else:
         raise Exception('Molecule name not defined, only Co and CO2 allowed')
-    conc_tot_fire, conc_tot_bio, ds = calc_concentrations(Inversion, pred_fire, pred_bio, flux_fire, flux_bio,molecule_name,alpha, savepath)
-    #print(conc_tot_fire)
-    #print(conc_tot_bio)
+
     plt.rcParams.update({'font.size':18})   
     plt.rcParams.update({'errorbar.capsize': 5})
     fig, (ax, ax2) = plt.subplots(nrows = 2, sharex = True, gridspec_kw={'height_ratios': [4, 1]},figsize = (12,8))
-    df = pd.DataFrame(data =conc_tot_fire.values, columns = ['conc_fire'])
-    df.insert(loc = 1, column ='conc_bio', value = conc_tot_bio.values)
-    df.insert(loc = 1, column = 'time', value = ds['time'])
-    df.insert(loc = 1, column = 'measurement_uncertainty', value = ds['measurement_uncertainty'])
-    df.insert(loc = 1, column = 'xco2_measurement', value = ds['xco2_measurement'])
-    #print(df.time.values)
-   
+
     ds.plot(x='time', y='background_inter',color = 'k', marker='.', markersize = 7,linestyle='None', ax=ax, label= 'Model background')
     ds.plot(x='time', y='xco2_measurement',marker='.',ax=ax, markersize = 7,linestyle='None',color = 'dimgrey',label= 'Measurement')#yerr = 'measurement_uncertainty', 
-    #plt.fill_between(df['time'],df['xco2_measurement']-df['measurement_uncertainty'],
-    #                 df['xco2_measurement']+df['measurement_uncertainty'],color = 'lightgrey' )
+    df.plot(x = 'time', y = 'prior_fire',marker = '.', ax = ax, markersize = 7,linestyle='None',color = 'salmon',label = 'Model prior fire')
     df.plot(x = 'time', y = 'conc_fire',marker = '.', ax = ax, markersize = 7,linestyle='None',color = 'red',label = 'Model posterior fire')
-    df.plot(x = 'time', y = 'conc_bio',marker = '.', ax = ax, markersize = 7,linestyle='None',color = 'darkred',label = 'Model posterior bio,fossil')
-    ds.plot(x='time', y='xco2_inter', marker='.', ax = ax,markersize = 7,linestyle='None',color = 'salmon', label='Model prior')
-    ax.legend()
+    df.plot(x = 'time', y = 'conc_bio',marker = '.', ax = ax, markersize = 7,linestyle='None',color = 'mediumseagreen',label = 'Model posterior bio,fossil')
+ 
+    ax.legend(markerscale = 2)
     ax.set_xticks([datetime.datetime(year =2019, month = 12, day = 1),datetime.datetime(year =2019, month = 12, day = 5), datetime.datetime(year =2019, month = 12, day = 10), datetime.datetime(year =2019, month = 12, day = 15),
                 datetime.datetime(year =2019, month = 12, day = 20), datetime.datetime(year =2019, month = 12, day = 25), datetime.datetime(year =2019, month = 12, day = 30), 
                 ], 
@@ -295,19 +275,95 @@ def plot_single_concentrations(Inversion, pred_fire, pred_bio,flux_fire, flux_bi
 
     ## Rotate date labels automatically
     fig.autofmt_xdate()
-    #ax.legend()
-    #ax.grid(axis = 'both')
-    #ax.set_ylabel('concentration [ppm]')
     ds_mean = pd.read_pickle('/work/bb1170/RUN/b382105/Flexpart/TCCON/preparation/one_hour_runs/TCCON_mean_measurements_sept_to_march.pkl')
     ds_mean = ds_mean[(ds_mean['datetime']>=datetime.datetime(year=2019, month =12, day=1))&(ds_mean['datetime']<= datetime.datetime(year=2020, month =1, day=9))]
     ax2.bar(ds_mean['datetime'], ds_mean['number_of_measurements'], width=0.1, color = 'dimgrey')
     ax2.set_ylabel('# measurements', labelpad=17)
     ax2.grid(axis='x')
-    #ax.set_title('CO', fontsize = 30)
+  
     plt.subplots_adjust(hspace=0)
     plt.savefig(savepath+str("{:e}".format(alpha))+'_'+molecule_name+'_concentrations_results.png', dpi = 300, bbox_inches = 'tight')
 
+
+def plot_total_concentrations(df, ds, savepath, alpha, molecule_name): 
+    if molecule_name == 'CO':
+        y = 35
+    elif molecule_name == 'CO2': 
+        y = 407
+    else:
+        raise Exception('Molecule name not defined, only Co and CO2 allowed')
+
+
+    plt.rcParams.update({'font.size':18})   
+    plt.rcParams.update({'errorbar.capsize': 5})
+    fig, (ax, ax2) = plt.subplots(nrows = 2, sharex = True, gridspec_kw={'height_ratios': [4, 1]},figsize = (12,8))
+
+    ds.plot(x='time', y='background_inter',color = 'k', marker='.', markersize = 7,linestyle='None', ax=ax, label= 'Model background')
+    ds.plot(x='time', y='xco2_measurement',marker='.',ax=ax, markersize = 7,linestyle='None',color = 'dimgrey',label= 'Measurement')#yerr = 'measurement_uncertainty', 
+    df.plot(x = 'time', y = 'prior',marker = '.', ax = ax, markersize = 7,linestyle='None',color = 'salmon',label = 'Total model prior')
+    df.plot(x = 'time', y = 'conc',marker = '.', ax = ax, markersize = 7,linestyle='None',color = 'red',label = 'Total model posterior')
+    
+    ax.legend(markerscale = 2)
+    ax.set_xticks([datetime.datetime(year =2019, month = 12, day = 1),datetime.datetime(year =2019, month = 12, day = 5), datetime.datetime(year =2019, month = 12, day = 10), datetime.datetime(year =2019, month = 12, day = 15),
+                datetime.datetime(year =2019, month = 12, day = 20), datetime.datetime(year =2019, month = 12, day = 25), datetime.datetime(year =2019, month = 12, day = 30), 
+                ], 
+                rotation=45)#datetime(year = 2020, month = 1, day = 4)
+    ax.set_xlim(left =  datetime.datetime(year = 2019, month = 11, day=30), right = datetime.datetime(year = 2019, month = 12, day=31, hour = 15))
+    ax.grid(axis = 'both')
+    ax.set_ylabel('concentration [ppm]', labelpad=6)
+    ax.errorbar(x= datetime.datetime(year =2019, month = 12, day = 31, hour = 4), y = y, yerr = ds['measurement_uncertainty'].mean(), marker = '.',markersize = 7,linestyle='None',color = 'dimgrey')
+    plt.xlabel('date')
+
+    myFmt = DateFormatter("%Y-%m-%d")
+    ax.xaxis.set_major_formatter(myFmt)
+
+    ## Rotate date labels automatically
+    fig.autofmt_xdate()
+    ds_mean = pd.read_pickle('/work/bb1170/RUN/b382105/Flexpart/TCCON/preparation/one_hour_runs/TCCON_mean_measurements_sept_to_march.pkl')
+    ds_mean = ds_mean[(ds_mean['datetime']>=datetime.datetime(year=2019, month =12, day=1))&(ds_mean['datetime']<= datetime.datetime(year=2020, month =1, day=9))]
+    ax2.bar(ds_mean['datetime'], ds_mean['number_of_measurements'], width=0.1, color = 'dimgrey')
+    ax2.set_ylabel('# measurements', labelpad=17)
+    ax2.grid(axis='x')
+  
+    plt.subplots_adjust(hspace=0)
+    plt.savefig(savepath+str("{:e}".format(alpha))+'_'+molecule_name+'_total_concentrations_results.png', dpi = 300, bbox_inches = 'tight')
+
+
+
+
+def plot_single_concentrations(Inversion, pred_fire, pred_bio,flux_fire, flux_bio, molecule_name, alpha, savepath): 
+
+    conc_tot_fire, conc_tot_bio, prior_fire, prior_bio, ds = calc_concentrations(Inversion, pred_fire, pred_bio, flux_fire, flux_bio,molecule_name,alpha, savepath)
+ 
+    df = pd.DataFrame(data =conc_tot_fire.values, columns = ['conc_fire'])
+    df.insert(loc = 1, column ='conc_bio', value = conc_tot_bio.values)
+    df.insert(loc = 1, column ='prior_bio', value = prior_bio.values)
+    df.insert(loc = 1, column ='prior_fire', value = prior_fire.values)
+    df.insert(loc = 1, column = 'time', value = ds['time'])
+    df.insert(loc = 1, column = 'measurement_uncertainty', value = ds['measurement_uncertainty'])
+    df.insert(loc = 1, column = 'xco2_measurement', value = ds['xco2_measurement'])
+
+    plot_fire_bio_concentrations(df, ds, savepath, alpha, molecule_name)
+   
     return
+
+def plot_single_total_concentrations(Inversion, pred_fire, pred_bio,flux_fire, flux_bio, molecule_name, alpha, savepath):
+
+    conc_tot_fire, conc_tot_bio, prior_fire, prior_bio, ds = calc_concentrations(Inversion, pred_fire, pred_bio, flux_fire, flux_bio,molecule_name,alpha, savepath)
+ 
+    conc_tot = conc_tot_fire - ds['background'] + conc_tot_bio
+    prior_tot = prior_fire - ds['background'] + prior_bio
+    
+    df = pd.DataFrame(data =conc_tot.values, columns = ['conc'])
+    df.insert(loc = 1, column ='prior', value = prior_tot.values)
+    df.insert(loc = 1, column = 'time', value = ds['time'])
+    df.insert(loc = 1, column = 'measurement_uncertainty', value = ds['measurement_uncertainty'])
+    df.insert(loc = 1, column = 'xco2_measurement', value = ds['xco2_measurement'])
+
+    plot_total_concentrations(df, ds, savepath, alpha, molecule_name)
+   
+    return 
+
 
 
 def plot_weekly_concentrations(Inversion, molecule_name,alpha, savepath):
