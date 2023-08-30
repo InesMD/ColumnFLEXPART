@@ -6,7 +6,7 @@ import xarray as xr
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 from columnflexpart.scripts.plotting_routine_coupled_split_inversion import plot_spatial_flux_results_or_diff_to_prior, plot_averaging_kernel,plot_input_mask,plot_weekly_concentrations, plot_single_concentrations
-from columnflexpart.scripts.plotting_routine_coupled_split_inversion import split_eco_flux, split_predictions,  plot_prior_spatially
+from columnflexpart.scripts.plotting_routine_coupled_split_inversion import split_eco_flux, split_predictions,  plot_prior_spatially, plot_single_total_concentrations, calculate_and_plot_averaging_kernel, plot_l_curve
 
 
 def do_everything(savepath, Inversion, molecule_name, mask_datapath_and_name, week_min, week_max, week_num):
@@ -14,8 +14,14 @@ def do_everything(savepath, Inversion, molecule_name, mask_datapath_and_name, we
     #plot_prior_spatially(Inversion,molecule_name,week_min, week_max, savepath)
     #l1, l2 = find_two_optimal_lambdas(Inversion,[1e-7,10], 1e-14, err)# 1e-8
     #print(l1)
-    l3 = 5e-4
-    for l in [l3]:#1, l2]:#,l2,l3]:
+    #l2 =5e-1
+    #l2 = 2e-2
+    #l3 = 1e-2
+    l1 = 1e-1
+    #l4 = 5e-9
+    #l5 = 5e-2
+    #l3 = 5e-3
+    for l in [l1]:#, l3]:#1, l2]:#,l2,l3]:
         print('fitting')
         predictions = Inversion.fit(alpha = l)#, xerr = err) 
         Inversion.predictions_flat = Inversion.predictions_flat.rename(dict(new = 'bioclass'))
@@ -43,6 +49,10 @@ def do_everything(savepath, Inversion, molecule_name, mask_datapath_and_name, we
         print('Plotting concentrations')
         plot_single_concentrations(Inversion, predictionsCO_fire, predictionsCO_bio, fluxCO_fire, fluxCO_bio, 'CO',l, savepath)
         plot_single_concentrations(Inversion, predictionsCO2_fire, predictionsCO2_bio, fluxCO2_fire,fluxCO2_bio, 'CO2',l, savepath)
+        plot_single_total_concentrations(Inversion, predictionsCO2_fire, predictionsCO2_bio, fluxCO2_fire,fluxCO2_bio, 'CO2',l, savepath)
+        plot_single_total_concentrations(Inversion, predictionsCO_fire, predictionsCO_bio, fluxCO_fire, fluxCO_bio, 'CO',l, savepath)
+        calculate_and_plot_averaging_kernel(Inversion,savepath,l)
+        plot_l_curve(Inversion, molecule_name, savepath, l, err = None)
         #plot_single_concentrations(Inversion,  'CO',l, savepath)
         #plot_weekly_concentrations(Inversion,'CO',l, savepath) # ist ziemlich hartgecoded gerade für Dezember!!!!!!!!!!
         #plot_weekly_concentrations(Inversion,'CO2',l, savepath)
@@ -50,7 +60,7 @@ def do_everything(savepath, Inversion, molecule_name, mask_datapath_and_name, we
 
 ######################### adapt stuff from here on ####################################
 
-savepath = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/Images_coupled_Inversion/everything_splitted_first_correlation_setup_weekly_inversion/52/'
+savepath = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/Images_coupled_Inversion/everything_splitted_first_correlation_setup_weekly_inversion/52/middle_prior_0.5/20000/'
 mask = "/home/b/b382105/ColumnFLEXPART/resources/Ecosystems_AK_based_split_with_21_and_20_larger_and_4_split.nc"#OekomaskAU_Flexpart_version8_all1x1"#Ecosystems_AK_based_split_with_21_and_20_larger.nc"#OekomaskAU_Flexpart_version8_all1x1"#Ecosystems_AK_based_split_with_21_and_20_larger.nc"
 non_equal_region_size = True
 
@@ -98,6 +108,12 @@ Inversion = CoupledInversion(
     date_max = datetime.datetime(year= 2020, month = 1, day = 7),
     boundary=[110.0, 155.0, -45.0, -10.0], 
        ) 
+
+#predictions = Inversion.fit(alpha = 5e-4)
+#plot_l_curve(Inversion, 'CO', savepath, 5e-4, err = None)
+#print(Inversion.compute_l_curve(alpha = [5e-4, 5e-3, 5e-2]))
+#print(Inversion.get_averaging_kernel())
+#print(Inversion.get_averaging_kernel().shape)
 #Inversion.multiply_H_and_F()
 #predictions = Inversion.fit()
 #Inversion.predictions_flat.to_netcdf('/home/b/b382105/test/ColumnFLEXPART/columnflexpart/scripts/coupled_predictions.nc')

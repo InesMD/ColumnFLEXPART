@@ -255,7 +255,7 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         F_matrix = xr.concat([upper_block, lower_block], dim='bioclass') 
 
         flux_grid_with_int = self.flux_grid.rename({'final_regions': 'bioclass'})#.assign_coords(bioclass = ('bioclass',self.flux_grid.final_regions.values.astype(int)))
-        np.set_printoptions(threshold=np.Inf)
+        #np.set_printoptions(threshold=np.Inf)
         #print(np.array(flux_grid_with_int.bioclass.values[:]))
         #print(np.array(flux_grid_with_int.drop_duplicates(dim = 'bioclass').bioclass.values[:]))
         #print(F_matrix.drop_duplicates(dim = 'bioclass'))
@@ -451,10 +451,10 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         flux_mean_bio_ant, flux_bio_ant_eco = self.coarsen_and_cut_flux_and_get_err(fluxes)
         #print(flux_mean_bio_ant)
         #flux_mean_bio, flux_mean_bio_eco = self.coarsen_and_cut_flux_and_get_err(bio_fluxes)
-        flux_fire = xr.ones_like(flux_mean_bio_ant).rename(dict(bioclass = 'final_regions'))*flux_mean_bio_ant.mean()*10**-3
-        #flux_fire[0] = flux_fire[0]*10**-7
-        flux_fire_eco = xr.ones_like(flux_bio_ant_eco).rename(dict(bioclass = 'final_regions'))*flux_mean_bio_ant.mean()*10**-3
-        #flux_fire_eco[0] = flux_fire_eco[0]*10**-7
+        flux_fire = xr.ones_like(flux_mean_bio_ant).rename(dict(bioclass = 'final_regions'))*flux_mean_bio_ant.mean()*0.5
+        flux_fire[0] = flux_fire[0]*10**-7
+        flux_fire_eco = xr.ones_like(flux_bio_ant_eco).rename(dict(bioclass = 'final_regions'))*flux_mean_bio_ant.mean()*0.5
+        flux_fire_eco[0] = flux_fire_eco[0]*10**-7
         #flux_fire_eco = flux_fire_eco.assign_coords(bioclass = (flux_fire_eco.bioclass).astype(int)).rename(dict(bioclass = 'final_regions'))
         #flux_fire = flux_fire.assign_coords(bioclass = (flux_fire.bioclass).astype(int)).rename(dict(bioclass = 'final_regions'))
         print(flux_fire_eco)
@@ -653,7 +653,7 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         print('Initlaizing done')
         return errCO2, errCO 
     
-    def get_non_area_weighted_rho_matrix(self, COfire_error: float, CO2fire_error: float):
+    def get_non_area_weighted_rho_matrix(self,  CO2fire_error: float, COfire_error: float):
         '''
         return rho matrix with the given values on the diagonal for CO and CO2 fire. 1 corresponds to a 100% error.
         '''
@@ -723,7 +723,7 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
     def get_prior_covariace_matrix(self, non_equal_region_size, area_bioreg): 
         #errCO2, errCO = self.get_prior_flux_errors(non_equal_region_size, area_bioreg)
         #rho = self.get_rho_prior_matrix(errCO2, errCO)
-        rho = self.get_non_area_weighted_rho_matrix(1, 1)
+        rho = self.get_non_area_weighted_rho_matrix(1,200)
         #(rho.where(rho != 0, drop = True))
         Cprior = self.get_Cprior_matrix()
         #print(Cprior.where(Cprior != 0, drop = True))

@@ -31,7 +31,50 @@ def split_eco_flux(Inversion):
 
         return fluxCO2_fire*10**-6, fluxCO2_bio*10**-6, fluxCO_fire*10**-9, fluxCO_bio*10**-9
 
+def get_averaging_kernel(self, reduce: bool=False, only_cols: bool=False):
+        ak = self.reg.get_averaging_kernel()
+        if reduce:
+            weeks = self.flux.week.values
+            filtered_weeks = self.get_filtered_weeks(self.flux).values
+            mask = np.ones((len(self.flux.week), self.n_eco))
+            mask[~np.isin(weeks, filtered_weeks)] = 0
+            mask = mask.flatten().astype(bool)
+            ak = ak[mask]
+            if not only_cols:
+                ak = ak[:, mask]
+        return ak
 
+def calculate_averaging_kernel(Inversion): 
+    ak = Inversion.get_averaging_kernel()
+
+    akCO2_fire = ak[:Inversion.number_of_reg, :Inversion.number_of_reg]
+    akCO2_bio = ak[Inversion.number_of_reg:Inversion.number_of_reg*2, Inversion.number_of_reg:Inversion.number_of_reg*2]
+    akCO_fire = ak[2*Inversion.number_of_reg:Inversion.number_of_reg*3, 2*Inversion.number_of_reg:Inversion.number_of_reg*3]
+    akCO_bio = ak[3*Inversion.number_of_reg:, 3*Inversion.number_of_reg:]
+    
+    return akCO2_fire, akCO2_bio, akCO_fire, akCO_bio
+    
+def plot_averaging_kernel(Inversion,ak_final, class_num, savepath, savename): 
+    ak_xr = xr.DataArray(data = ak_final.diagonal()[1:], dims = ['bioclass'], coords=dict(bioclass= list(np.arange(1,Inversion.number_of_reg))))#, week = [1,48,49,50,51,52])))
+    ak_spatial = Inversion.map_on_grid_without_time_coord(ak_xr, class_num)
+    plt.figure()
+    ax = plt.axes(projection=ccrs.PlateCarree())  
+    orig_map=plt.cm.get_cmap('gist_heat')
+    reversed_map = orig_map.reversed()
+    ak_spatial.plot( x='longitude', y='latitude',ax = ax,vmax = 1, vmin = 0,cmap = reversed_map, cbar_kwargs = {'shrink':0.835})#norm = LogNorm(vmin = 1e-3),
+    plt.scatter(x = 150.8793,y =-34.4061,color="black")
+    ax.coastlines()
+    plt.title('Averaging kernel for 2019/12')
+    plt.savefig(savepath+savename, dpi = 250, bbox_inches = 'tight')
+
+
+
+def calculate_and_plot_averaging_kernel(Inversion, savepath, alpha): 
+    akCO2_fire, akCO2_bio, akCO_fire, akCO_bio = calculate_averaging_kernel(Inversion)
+    name_list = ['_CO2_fire_', '_CO2_bio_', '_CO_fire_', '_CO_bio_']
+    for idx,ak in enumerate([akCO2_fire, akCO2_bio, akCO_fire, akCO_bio]):
+        savename = str("{:e}".format(alpha))+'_ak_spatial_'+name_list[idx]+'.png'
+        plot_averaging_kernel(Inversion,ak,Inversion.number_of_reg, savepath, savename)
 
 def plot_spatial_result(spatial_result, savepath, savename, cmap, vmax =None, vmin =None, cbar_kwargs = {'shrink':  0.835}):
     '''
@@ -129,7 +172,7 @@ def plot_spatial_averaging_kernel(ak_spatial, savepath,alpha, molecule_name, wee
         plt.savefig(savepath+str("{:e}".format(alpha))+'_'+molecule_name+'_ak_spatial.png', bbox_inches = 'tight', dpi = 450)
     plt.close()
 
-
+'''
 def plot_averaging_kernel(Inversion, alpha, class_num, week_num,savepath, plot_spatially, weekly = False):
     
     ak_finalCO2, ak_finalCO, ak_sumCO2, ak_sumCO = Inversion.calculate_averaging_kernel(class_num, week_num)
@@ -168,7 +211,7 @@ def plot_averaging_kernel(Inversion, alpha, class_num, week_num,savepath, plot_s
         plt.savefig(savepath+str("{:e}".format(alpha))+'_CO_ak_final_2d.png')
         plt.close()
  
-
+'''
 def plot_input_mask(savepath,datapath_and_name, selection= None): 
     ds = xr.open_dataset(datapath_and_name)
     if selection != None: 
@@ -191,10 +234,16 @@ def plot_input_mask(savepath,datapath_and_name, selection= None):
 
 
 def multiply_footprints_with_fluxes_for_concentrations(Inversion, flux, footprints, factor, background):
-
+    print(footprints)
     footprints_flat = footprints.stack(new=[Inversion.time_coord, *Inversion.spatial_valriables])
+    print(footprints_flat)
+    print(flux)
     concentration_results = footprints_flat.values*factor*flux.values
+    print('concentration results')
+    print(concentration_results)
+    print(concentration_results.shape)
     conc_sum = concentration_results.sum(axis = 1)
+    print(conc_sum)
     conc_tot = conc_sum + background
 
     return conc_tot
@@ -255,9 +304,9 @@ def plot_fire_bio_concentrations(df, ds, savepath, alpha, molecule_name):
 
     ds.plot(x='time', y='background_inter',color = 'k', marker='.', markersize = 7,linestyle='None', ax=ax, label= 'Model background')
     ds.plot(x='time', y='xco2_measurement',marker='.',ax=ax, markersize = 7,linestyle='None',color = 'dimgrey',label= 'Measurement')#yerr = 'measurement_uncertainty', 
-    df.plot(x = 'time', y = 'prior_fire',marker = '.', ax = ax, markersize = 7,linestyle='None',color = 'salmon',label = 'Model prior fire')
-    df.plot(x = 'time', y = 'conc_fire',marker = '.', ax = ax, markersize = 7,linestyle='None',color = 'red',label = 'Model posterior fire')
-    df.plot(x = 'time', y = 'conc_bio',marker = '.', ax = ax, markersize = 7,linestyle='None',color = 'mediumseagreen',label = 'Model posterior bio,fossil')
+    df.plot(x = 'time', y = 'prior_fire',marker = '.', ax = ax, markersize = 7,linestyle='None',color = 'salmon',label = 'Prior fire')
+    df.plot(x = 'time', y = 'conc_bio',marker = '.', ax = ax, markersize = 7,linestyle='None',color = 'skyblue',label = 'Posterior bio & fossil')
+    df.plot(x = 'time', y = 'conc_fire',marker = '.', ax = ax, markersize = 7,linestyle='None',color = 'red',label = 'Posterior fire')
  
     ax.legend(markerscale = 2)
     ax.set_xticks([datetime.datetime(year =2019, month = 12, day = 1),datetime.datetime(year =2019, month = 12, day = 5), datetime.datetime(year =2019, month = 12, day = 10), datetime.datetime(year =2019, month = 12, day = 15),
@@ -351,9 +400,17 @@ def plot_single_total_concentrations(Inversion, pred_fire, pred_bio,flux_fire, f
 
     conc_tot_fire, conc_tot_bio, prior_fire, prior_bio, ds = calc_concentrations(Inversion, pred_fire, pred_bio, flux_fire, flux_bio,molecule_name,alpha, savepath)
  
-    conc_tot = conc_tot_fire - ds['background'] + conc_tot_bio
-    prior_tot = prior_fire - ds['background'] + prior_bio
-    
+    conc_tot = conc_tot_fire - ds['background_inter'] + conc_tot_bio
+    #print('fire prior')
+    #print(prior_fire)
+    #print('prior_bio')
+    #print(prior_bio)
+    #print('background')
+    #print(ds['background'])
+    #print('prior_tot')
+
+    prior_tot = prior_fire - ds['background_inter'] + prior_bio
+    print(prior_tot)
     df = pd.DataFrame(data =conc_tot.values, columns = ['conc'])
     df.insert(loc = 1, column ='prior', value = prior_tot.values)
     df.insert(loc = 1, column = 'time', value = ds['time'])
@@ -363,6 +420,137 @@ def plot_single_total_concentrations(Inversion, pred_fire, pred_bio,flux_fire, f
     plot_total_concentrations(df, ds, savepath, alpha, molecule_name)
    
     return 
+'''
+def get_loss_terms(Regression, x):## muss noch angepasst werden 
+    loss_regularization = (
+        (Regression.x_prior - x)
+        @ Regression.x_covariance_inv_sqrt
+        @ Regression.x_covariance_inv_sqrt.T
+        @ (Regression.x_prior - x)
+    )
+    loss_least_squares = np.sum((Regression.y - Regression.K @ x) ** 2)
+    return loss_regularization, loss_least_squares
+
+
+def compute_l_curve(Inversion, alpha_list=[0.1, 1.0, 10.0], cond=None):
+        """
+        Compute the so-called l-curve.
+
+        Parameters
+        ----------
+        alpha_list : list of float, optional
+            List of the regularization parameters, by default None
+        cond : float, optional
+            Cutoff for 'small' singular values; used to determine effective rank of a.
+            Singular values smaller than cond * largest_singular_value are considered
+            zero.
+
+        Returns
+        -------
+        inversion_params : dict
+            The resulting output from the inversions. The dictionary contains lists with
+            entries for each `alpha` of `alpha_list`:
+             - "x_est" : The estimated state vector.
+             - "res" : Residues of the loss function.
+             - "rank" : Effective rank of the (adapted) forward matrix.
+             - "s" : Singular values of the (adapted) forward matrix.
+             - "loss_regularization" : The values of the regularization term of the inversion equation.
+             - "loss_forward_model" : The values of the measurement term of the inversion equation.
+
+        Examples
+        --------
+        To plot the l-curve:
+
+        >>> inv_params = regression.compute_l_curve()
+        >>> matplotlib.pyplot.plot(
+        ...     inv_params["loss_regularization"],
+        ...     inv_params["loss_forward_model"],
+        ... )
+
+        To get the gain, averaging kernel, and posterior covariance matrix (only works
+        for Bayesian inversion):
+
+        >>> posterior_covariance = regression.get_posterior_covariance()
+        >>> gain = regression.get_gain()
+        >>> averaging_kernel = regression.get_averaging_kernel()
+
+        """
+        inversion_params = dict(
+            alpha=alpha_list,
+            x_est=[],
+            res=[],
+            rank=[],
+            s=[],
+            loss_regularization=[],
+            loss_forward_model=[],
+        )
+        for alpha in alpha_list:
+            # Update inversion parameters
+            y_reg, K_reg = Inversion.model.get_reg_params(alpha)
+            x_est, res, rank, s =Inversion.fit(cond=cond)
+            inversion_params["x_est"].append(x_est)
+            inversion_params["res"].append(res)
+            inversion_params["rank"].append(rank)
+            inversion_params["s"].append(s)
+            loss_regularization, loss_forward_model = get_loss_terms(Inversion.reg,
+                x=x_est
+            )
+            inversion_params["loss_regularization"].append(loss_regularization)
+            inversion_params["loss_forward_model"].append(loss_forward_model)
+        return inversion_params
+
+
+
+
+
+'''
+
+
+
+
+
+
+
+
+
+
+
+def plot_l_curve(Inversion, molecule_name, savepath, alpha, err = None):
+    #[1e-8,3e-8, 1e-7, 4.9e-7, 1e-6,2e-6,5e-6, 1e-5,2e-5, 3e-5,5e-5,1e-4, 2e-4, 3e-4, 5e-4, 1e-3,2e-3,4.32e-3, 1e-2,1.8e-2,3e-2,5e-2,7e-2, 1e-1,1.8e-1,3e-1,5e-1, 1]
+    # [1e-8,2.5e-8,5e-8,1e-7,2.5e-7,5.92e-7,1e-6,2.5e-6,5e-6,1e-5,2.5e-5,5e-5,1e-4,2.5e-4,5e-4,1e-3,2.5e-3,4.32e-3,1e-2,2.5e-2,5e-2,1e-1,1.5e-1,5e-1,1]
+
+    #1e-60,1e-55,1e-52,1e-50,1e-45,1e-40,1e-38, 1e-36, 1e-35,1e-34,1e-33,1e-32,1e-31, 5e-31, 2e-30,1e-29,5e-29, 1e-28,5e-28,1e-27,1e-26,5e-26, 1e-25,5e-25,1e-24, 1e-23,1e-22,1e-21, 1e-20,1e-19,1e-18, 1e-17,
+    print('compute l curve')
+    #print(Inversion.reg.compute_l_curve())
+    inv_result = Inversion.reg.compute_l_curve(alpha_list =[1e-8,4e-8,1e-7,4e-7,1e-6,4e-6,1e-5,4e-5, 1e-4,4e-4,1e-3,4e-3,1e-2,4e-2, 1e-1,4e-1, 1,4, 10], cond = 1e-14)
+    
+    #self.l_curve_result = reg.compute_l_curve(alpha, cond)
+    #self.alpha = alpha
+    
+    print(len(inv_result['loss_regularization']))
+    #inv_result = Inversion.compute_l_curve(alpha = [3e-19,1e-18,3e-18,1e-17,3e-17,1e-16,3e-16,1e-15,3e-15,1e-14, 5e-14,1e-13, 5e-13, 1e-12, 1e-11,3e-11,1e-10,5e-10,1e-9,4e-9,1e-8,2.5e-8,5e-8,1e-7,2e-7,
+    #                                                5e-7,1e-6,2.5e-6,5e-6,1e-5,2.5e-5,5e-5,1e-4,2.5e-4,5e-4,1e-3,2.5e-3,4.32e-3,1e-2,2.5e-2,5e-2,1e-1,1.5e-1,5e-1,1], xerr = err)
+    #inv_result = Inversion.compute_l_curve(alpha = [1e-17,5e-17,1e-16,5e-16,1e-15,5e-15,1e-14, 5e-14,1e-13, 5e-13, 1e-12, 5e-12,1e-11,5e-11,1e-10,5e-10,1e-9,4e-9,1e-8,2.5e-8,5e-8,1e-7,2e-7,5e-7,1e-6,2.5e-6,5e-6,1e-5,2.5e-5,5e-5,1e-4,2.5e-4,5e-4,1e-3,2.5e-3,4.32e-3,1e-2,2.5e-2,5e-2,1e-1,1.5e-1,5e-1,1], xerr = err)
+    print('Plotting')
+    plt.figure(figsize=(10,8))
+    #print(inv_result)
+    #plt.scatter(inv_result["loss_regularization"],inv_result["loss_forward_model"])
+    #plt.plot(inv_result["loss_regularization"],inv_result["loss_forward_model"])
+    plt.scatter(inv_result["loss_forward_model"],inv_result["loss_regularization"], color = 'black')
+    plt.scatter(inv_result["loss_forward_model"][10], inv_result["loss_regularization"][10], color = 'firebrick', label = '$\lambda = 4 *10^{-4}$')
+    plt.plot(inv_result["loss_forward_model"],inv_result["loss_regularization"], color = 'black')
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.ylabel('Regularization loss')
+    plt.xlabel('Forward model loss')
+    #plt.xlim((0,1e7))
+    #plt.ylim((0, 4e-13))
+    #fig, ax = Inversion.plot_l_curve(mark_ind = 17, mark_kwargs= dict(color = 'firebrick',label = r'$\lambda =1 \cdot 10^{-3}$'))
+    #plt.grid(axis = 'y', color = 'grey', linestyle = '--' )
+    plt.legend()
+    print('saving')
+    plt.savefig(savepath+str("{:e}".format(alpha))+'_'+molecule_name+'_err_per_reg_l_curve_xerr_extended2_middle.png')
+
 
 
 
