@@ -489,10 +489,10 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         # Error of mean calculation
         return flux_mean_bio_fossil*10**9, flux_bio_fossil_eco*10**9#, flux_err
 
-    def get_CO_fire_flux_like_CO2(flux_meanCO2_grid, flux_meanCO2_eco):
+    def get_CO_fire_flux_like_CO2(self, flux_meanCO2_grid, flux_meanCO2_eco):
         fire_grid_CO2 = flux_meanCO2_grid.where(flux_meanCO2_grid.final_regions <= int(flux_meanCO2_grid.final_regions.values.max()/2), drop = True)
         fire_eco_CO2 = flux_meanCO2_eco.where(flux_meanCO2_eco.final_regions <= int(flux_meanCO2_eco.final_regions.values.max()/2), drop = True)
-        factor_scaling_CO2_to_CO = 14.4 *10**3 # from Van de Velde Paper and scaling ppm to ppb
+        factor_scaling_CO2_to_CO = 14.4**-1 *28.01/44.01 *10**3 # from Van de Velde Paper (14.4gCo2/gCO -> 14.4 *44/28 molCO2/molCO)and scaling ppm to ppb
         return fire_grid_CO2*factor_scaling_CO2_to_CO,  fire_eco_CO2*factor_scaling_CO2_to_CO
 
 
@@ -507,7 +507,6 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
                                COflux_mean_bio_fossil_grid], dim = 'final_regions')
         flux_meanCO_eco  = xr.concat([COfire_flux_eco, 
                                COflux_bio_fossil_eco], dim = 'final_regions')
-
 
         #np.set_printoptions(threshold=np.Inf)
         #print(np.array(flux_meanCO2_grid.final_regions.values[:]))
@@ -744,7 +743,7 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
     def get_prior_covariace_matrix(self, non_equal_region_size, area_bioreg): 
         #errCO2, errCO = self.get_prior_flux_errors(non_equal_region_size, area_bioreg)
         #rho = self.get_rho_prior_matrix(errCO2, errCO)
-        rho = self.get_non_area_weighted_rho_matrix(1,200)
+        rho = self.get_non_area_weighted_rho_matrix(1.5,2.5)
         #(rho.where(rho != 0, drop = True))
         Cprior = self.get_Cprior_matrix()
         #print(Cprior.where(Cprior != 0, drop = True))
