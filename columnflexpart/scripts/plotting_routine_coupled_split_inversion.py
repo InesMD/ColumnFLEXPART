@@ -108,7 +108,7 @@ def plot_prior_spatially(Inversion, flux, name, idx, savepath):
     elif idx == 1:
         plot_spatial_result(spatial_flux, savepath,savename, 'seismic', vmax = 10, vmin = -10, cbar_kwargs = {'label' : r'weekly flux [$\mu$gC m$^{-2}$s$^{-1}$]', 'shrink': 0.835}  )
     elif idx == 2:
-        plot_spatial_result(spatial_flux, savepath,savename, 'seismic', vmax = 0.1, vmin = -0.1, cbar_kwargs = {'label' : r'weekly flux [$\mu$gC m$^{-2}$s$^{-1}$]', 'shrink': 0.835}  )
+        plot_spatial_result(spatial_flux, savepath,savename, 'seismic', vmax = 1, vmin = -1, cbar_kwargs = {'label' : r'weekly flux [$\mu$gC m$^{-2}$s$^{-1}$]', 'shrink': 0.835}  )
     elif idx == 3:
         plot_spatial_result(spatial_flux, savepath,savename, 'seismic', vmax = 0.4, vmin = -0.4, cbar_kwargs = {'label' : r'weekly flux [$\mu$gC m$^{-2}$s$^{-1}$]', 'shrink': 0.835}  )
 
@@ -234,16 +234,16 @@ def plot_input_mask(savepath,datapath_and_name, selection= None):
 
 
 def multiply_footprints_with_fluxes_for_concentrations(Inversion, flux, footprints, factor, background):
-    print(footprints)
+    #print(footprints)
     footprints_flat = footprints.stack(new=[Inversion.time_coord, *Inversion.spatial_valriables])
-    print(footprints_flat)
-    print(flux)
+    #print(footprints_flat)
+    #print(flux)
     concentration_results = footprints_flat.values*factor*flux.values
-    print('concentration results')
-    print(concentration_results)
-    print(concentration_results.shape)
+    #print('concentration results')
+    #print(concentration_results)
+    #print(concentration_results.shape)
     conc_sum = concentration_results.sum(axis = 1)
-    print(conc_sum)
+    #print(conc_sum)
     conc_tot = conc_sum + background
 
     return conc_tot
@@ -253,6 +253,8 @@ def calc_concentrations(Inversion, pred_fire, pred_bio, flux_fire, flux_bio, mol
     'for either CO or CO2 not both at the same time'
     datapath_predictions = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/'
     predictions_CO2, predictions_CO = Inversion.select_relevant_times()
+    print('Inversion.footprints_eco')
+    print(Inversion.footprints_eco)
     if molecule_name == 'CO':
         ds = predictions_CO
         factor = 10**9 
@@ -287,14 +289,35 @@ def calc_concentrations(Inversion, pred_fire, pred_bio, flux_fire, flux_bio, mol
                                                                     footprints_bio, factor, ds['background_inter'])
     conc_sum_fire_prior = multiply_footprints_with_fluxes_for_concentrations(Inversion, flux_fire.squeeze(dim='week').drop('week'), 
                                                                     footprints_fire, factor, ds['background_inter'])
+    
+    print(Inversion.footprints_eco)
+    print(Inversion.footprints_eco.where(Inversion.footprints_eco.week == Inversion.week, drop = True))
+
+    conc_sum_bio = multiply_footprints_with_fluxes_for_concentrations(Inversion, flux_bio.squeeze(dim='week').drop('week')*pred_bio, 
+                                                                      Inversion.footprints_eco.where(Inversion.footprints_eco.week == Inversion.week, drop = True), factor, ds['background_inter'])
+    
+    conc_sum_fire = multiply_footprints_with_fluxes_for_concentrations(Inversion, flux_fire.squeeze(dim='week').drop('week')*pred_fire, 
+                                                                     Inversion.footprints_eco.where(Inversion.footprints_eco.week == Inversion.week, drop = True), factor, ds['background_inter'])
+    conc_sum_bio_prior = multiply_footprints_with_fluxes_for_concentrations(Inversion, flux_bio.squeeze(dim='week').drop('week'), 
+                                                                     Inversion.footprints_eco.where(Inversion.footprints_eco.week == Inversion.week, drop = True), factor, ds['background_inter'])
+    conc_sum_fire_prior = multiply_footprints_with_fluxes_for_concentrations(Inversion, flux_fire.squeeze(dim='week').drop('week'), 
+                                                                     Inversion.footprints_eco.where(Inversion.footprints_eco.week == Inversion.week, drop = True), factor, ds['background_inter'])
+
+
+
+
 
     return conc_sum_fire , conc_sum_bio, conc_sum_fire_prior, conc_sum_bio_prior, ds
 
 def plot_fire_bio_concentrations(df, ds, savepath, alpha, molecule_name): 
     if molecule_name == 'CO':
         y = 35
+        ymin = 0
+        ymax = 300
     elif molecule_name == 'CO2': 
         y = 407
+        ymin = 407
+        ymax = 420
     else:
         raise Exception('Molecule name not defined, only Co and CO2 allowed')
 
@@ -313,8 +336,9 @@ def plot_fire_bio_concentrations(df, ds, savepath, alpha, molecule_name):
                 datetime.datetime(year =2019, month = 12, day = 20), datetime.datetime(year =2019, month = 12, day = 25), datetime.datetime(year =2019, month = 12, day = 30), 
                 ], 
                 rotation=45)#datetime(year = 2020, month = 1, day = 4)
-    ax.set_xlim(left =  datetime.datetime(year = 2019, month = 11, day=30), right = datetime.datetime(year = 2019, month = 12, day=31, hour = 15))
+    ax.set_xlim(left =  datetime.datetime(year = 2019, month = 11, day=30), right = datetime.datetime(year = 2019, month = 12, day=30, hour = 15))
     ax.grid(axis = 'both')
+    ax.set_ylim((ymin,ymax))
     ax.set_ylabel('concentration [ppm]', labelpad=6)
     ax.errorbar(x= datetime.datetime(year =2019, month = 12, day = 31, hour = 4), y = y, yerr = ds['measurement_uncertainty'].mean(), marker = '.',markersize = 7,linestyle='None',color = 'dimgrey')
     plt.xlabel('date')
