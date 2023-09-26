@@ -87,9 +87,9 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         self.rho_prior = None
         self.K = self.multiply_H_and_F()
         #self.coords = self.K.stack(new=[self.time_coord, *self.spatial_valriables]).new
-        print(self.K.week == self.week)
+        #print(self.K.week == self.week)
         self.footprints_flat = self.K[:,self.K.week == self.week,:].squeeze()#.stack(new=[self.time_coord, *self.final_spatial_variable])
-        print(self.footprints_flat)
+        #print(self.footprints_flat)
         self.flux_errs_flat = self.get_prior_covariace_matrix(self.non_equal_region_size, self.area_bioreg)# self.flux_errs.stack(new=[self.time_coord, *self.spatial_valriables])
         #print(self.flux_errs_flat)
         self.coords = self.flux_eco.rename(dict(final_regions = 'new')).new#assign_coords(new = ('new', self.flux_eco.final_regions.values)).new
@@ -167,8 +167,8 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         #print('footprints')
         #print(total_matrix)
         footprints_eco = xr.concat(footprints_eco, dim = "measurement")/100 * 0.029 
-        print('footprints_eco')
-        print(footprints_eco)
+        #print('footprints_eco')
+        #print(footprints_eco)
         return total_matrix, footprints_eco
 
     def get_footprint_and_measurement(self, concentration_key):#path_to_CO2_predictions : str, path_to_CO_predictions: str, date_min : datetime.datetime, date_max: datetime.datetime):
@@ -206,6 +206,11 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
             dims = "measurement",
             coords = dict(measurement = measurement_id) 
         )
+        ########### added to see influence of concentration errors ############
+        concentration_errsCO2 = list(np.ones(len(concentration_errsCO2))*2)# 2 ppm
+        concentration_errsCO = list(np.ones(len(concentration_errsCO2))*3)#3 ppb
+        ####################################################################### 
+
         concentration_errs  = xr.DataArray(
             data = concentration_errsCO2+concentration_errsCO,# append CO2 and CO
             dims = "measurement",
@@ -325,7 +330,21 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
     def coarsen_and_cut_flux_and_get_err(self, flux): 
         flux = select_boundary(flux, self.boundary)
         flux_mean = self.coarsen_data_to_grid(flux, "mean", self.time_coarse)
+        #print('flux_mean')
+        #print(flux_mean)
+        #plt.figure()
+        #img = flux_mean.plot()
+        ##bar = plt.colorbar(img)
+        #plt.savefig('/home/b/b382105/test/ColumnFLEXPART/columnflexpart/scripts/flux_mean.png')
+        #plt.close()
         flux_mean_eco = self.coarsen_data(flux, "mean", self.time_coarse)
+        #print('flux_mean_eco')
+        #print(flux_mean_eco)
+        #plt.figure()
+        #img = flux_mean_eco.plot()
+        #bar = plt.colorbar(img)
+        plt.savefig('/home/b/b382105/test/ColumnFLEXPART/columnflexpart/scripts/flux_mean_eco.png')
+        plt.close()
         #flux_err = self.get_flux_err(flux, flux_mean)
         return flux_mean, flux_mean_eco
 
@@ -342,6 +361,10 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         flux_fire = flux.fire_flux_imp
         
         flux_fire_mean, flux_fire_eco = self.coarsen_and_cut_flux_and_get_err(flux_fire)
+        fire_flux_to_plot = flux_fire_mean.where(flux_fire_mean.week == self.week, drop = True)
+        spatial_flux = self.map_on_grid(fire_flux_to_plot*12*10**6)
+        spatial_flux.plot(x = 'longitude', y = 'latitude')
+        plt.savefig('/home/b/b382105/test/ColumnFLEXPART/columnflexpart/scripts/fire_flux_mean.png')
         flux_bio_fossil_mean, flux_bio_fossil_eco = self.coarsen_and_cut_flux_and_get_err(flux_bio_fossil)
 
         flux_bio_fossil_mean = flux_bio_fossil_mean.assign_coords(bioclass = (flux_fire_mean.bioclass+ flux_fire_mean.bioclass.values.max() + 1 ).astype(int)).rename(dict(bioclass = 'final_regions'))
@@ -458,10 +481,10 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         #flux_mean_bio, flux_mean_bio_eco = self.coarsen_and_cut_flux_and_get_err(bio_fluxes)
 
         ######## Flat prior for CO fire: ############################
-        flux_fire = xr.ones_like(flux_mean_bio_ant).rename(dict(bioclass = 'final_regions'))*flux_mean_bio_ant.mean()*0.5
-        flux_fire[0] = flux_fire[0]*10**-7
-        flux_fire_eco = xr.ones_like(flux_bio_ant_eco).rename(dict(bioclass = 'final_regions'))*flux_mean_bio_ant.mean()*0.5
-        flux_fire_eco[0] = flux_fire_eco[0]*10**-7
+        #flux_fire = xr.ones_like(flux_mean_bio_ant).rename(dict(bioclass = 'final_regions'))*flux_mean_bio_ant.mean()*0.5
+        #flux_fire[0] = flux_fire[0]*10**-7
+        #flux_fire_eco = xr.ones_like(flux_bio_ant_eco).rename(dict(bioclass = 'final_regions'))*flux_mean_bio_ant.mean()*0.5
+        #flux_fire_eco[0] = flux_fire_eco[0]*10**-7
         ###########################################################
         #Co prior like CO2:  in other function
 
@@ -469,35 +492,35 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         #flux_fire_eco = flux_fire_eco.assign_coords(bioclass = (flux_fire_eco.bioclass).astype(int)).rename(dict(bioclass = 'final_regions'))
         #flux_fire = flux_fire.assign_coords(bioclass = (flux_fire.bioclass).astype(int)).rename(dict(bioclass = 'final_regions'))
         #print(flux_fire_eco)
-        print(flux_mean_bio_ant.mean())
+        #print(flux_mean_bio_ant.mean())
 
         flux_mean_bio_fossil = flux_mean_bio_ant.assign_coords(bioclass = (flux_mean_bio_ant.bioclass+ flux_mean_bio_ant.bioclass.values.max() + 1 ).astype(int)).rename(dict(bioclass = 'final_regions'))
         flux_bio_fossil_eco = flux_bio_ant_eco.assign_coords(bioclass = (flux_bio_ant_eco.bioclass+ flux_bio_ant_eco.bioclass.values.max() + 1 ).astype(int)).rename(dict(bioclass = 'final_regions'))
       
         #flux_err_bio_ant2 = flux_err_bio_ant.assign_coords(bioclass = (flux_mean_bio_ant.bioclass+ flux_mean_bio_ant.bioclass.values.max() + 1 )).rename(dict(bioclass = 'final_regions'))
         #was used for flat prior 
-        flux_mean = xr.concat([flux_fire, 
-                               flux_mean_bio_fossil], dim = 'final_regions')
-        flux_mean = flux_mean *10**9
+        #flux_mean = xr.concat([flux_fire, 
+        #                       flux_mean_bio_fossil], dim = 'final_regions')
+        #flux_mean = flux_mean *10**9
         
 
-        flux_mean_eco = xr.concat([flux_fire_eco, 
-                               flux_bio_fossil_eco], dim = 'final_regions')
+        #flux_mean_eco = xr.concat([flux_fire_eco, 
+        #                       flux_bio_fossil_eco], dim = 'final_regions')
         #flux_err = xr.concat([flux_err_bio_ant.rename(dict(bioclass = 'final_regions')), 
         #                      flux_err_bio_ant2], dim = 'final_regions')
-        flux_mean_eco = flux_mean_eco*10**9
+        #flux_mean_eco = flux_mean_eco*10**9
         
         #print('CO flux')
         #print('CO flux mean')
         #print(flux_mean)
 
         # Error of mean calculation
-        return flux_mean, flux_mean_eco #flux_mean_bio_fossil*10**9, flux_bio_fossil_eco*10**9#, flux_err
+        return flux_mean_bio_fossil*10**9, flux_bio_fossil_eco*10**9#flux mean , flux_mean_eco
 
     def get_CO_fire_flux_like_CO2(self, flux_meanCO2_grid, flux_meanCO2_eco):
         fire_grid_CO2 = flux_meanCO2_grid.where(flux_meanCO2_grid.final_regions <= int(flux_meanCO2_grid.final_regions.values.max()/2), drop = True)
-        print('fire grid CO2')
-        print(fire_grid_CO2)
+        #print('fire grid CO2')
+        #print(fire_grid_CO2)
         fire_eco_CO2 = flux_meanCO2_eco.where(flux_meanCO2_eco.final_regions <= int(flux_meanCO2_eco.final_regions.values.max()/2), drop = True)
         factor_scaling_CO2_to_CO = 14.4**-1 *28.01/44.01 *10**3 # from Van de Velde Paper (14.4gCo2/gCO -> 14.4 *44/28 molCO2/molCO)and scaling ppm to ppb
         return fire_grid_CO2*factor_scaling_CO2_to_CO,  fire_eco_CO2*factor_scaling_CO2_to_CO
@@ -506,33 +529,46 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
     def get_flux(self): # to be wrapped together # flux mean has coords bioclass and week 
         
         flux_meanCO2_grid, flux_meanCO2_eco = self.get_flux_CO2()
-        flux_meanCO_grid, flux_meanCO_eco = self.get_flux_CO() # err checken!!!!!!!!!!!!!! # ADAPTED _ NEEDS TO BNE CO!!!!!!!!!!!!!!!!!!!!!!!!
-        '''
+        ################# uncomment for flat prior ##############
+        #flux_meanCO_grid, flux_meanCO_eco = self.get_flux_CO() # err checken!!!!!!!!!!!!!! # ADAPTED _ NEEDS TO BNE CO!!!!!!!!!!!!!!!!!!!!!!!!
+        
+
+        ################## comment for flat prior ###############
         COflux_mean_bio_fossil_grid, COflux_bio_fossil_eco = self.get_flux_CO()
         COfire_flux_grid, COfire_flux_eco = self.get_CO_fire_flux_like_CO2(flux_meanCO2_grid, flux_meanCO2_eco)
         flux_meanCO_grid  = xr.concat([COfire_flux_grid, 
                                COflux_mean_bio_fossil_grid], dim = 'final_regions')
-        print('flux mean CO grid')
-        print(flux_meanCO_grid)
-        print('flux mean CO2 grid')
-        print(flux_meanCO2_grid)
+        #print('flux mean CO grid')
+        #print(flux_meanCO_grid)
+        #print('flux mean CO2 grid')
+        #print(flux_meanCO2_grid)
         flux_meanCO_eco  = xr.concat([COfire_flux_eco, 
                                COflux_bio_fossil_eco], dim = 'final_regions')
 
         #np.set_printoptions(threshold=np.Inf)
         #print(np.array(flux_meanCO2_grid.final_regions.values[:]))
         #print(np.array(flux_meanCO_grid.final_regions.values[:]))
-        '''
+        
         #adapt coordinates and concatenate fluxes
         flux_meanCO_grid = flux_meanCO_grid.assign_coords(final_regions = ((flux_meanCO_grid.final_regions+ flux_meanCO_grid.final_regions.values.max() + 1).astype(int)))
         flux_mean_grid = xr.concat([flux_meanCO2_grid, flux_meanCO_grid], dim = "final_regions")
-        flux_mean_grid = flux_mean_grid.assign_coords(final_regions = ('final_regions', flux_mean_grid.final_regions.values.astype(int)))
+        #flux_mean_grid = flux_mean_grid.assign_coords(final_regions = ('final_regions', flux_mean_grid.final_regions.values.astype(int)))
 
         flux_meanCO_eco = flux_meanCO_eco.assign_coords(final_regions = ((flux_meanCO_eco.final_regions+ flux_meanCO_eco.final_regions.values.max() + 1).astype(int)))
         flux_mean_eco = xr.concat([flux_meanCO2_eco, flux_meanCO_eco], dim = "final_regions")
-        
+        ################################################################################################
+
+
         #flux_errCO = flux_errCO.assign_coords(final_regions = ((flux_errCO.final_regions+ flux_errCO.final_regions.values.max() + 1)))
         #flux_err = xr.concat([flux_errCO2, flux_errCO], dim = "final_regions")
+
+
+        print('flux_mean_grid')
+        print(flux_mean_grid)
+        print('flux_mean_eco')
+        print(flux_mean_eco)
+
+
         return flux_mean_grid, flux_mean_eco#, flux_err
     
 
@@ -627,6 +663,8 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
                             coords = dict(final_regions =(["final_regions"], self.footprints_flat.final_regions.values), 
                                         final_regions2 =(["final_regions2"],  self.footprints_flat.final_regions.values)))
         #print(Cprior.isnull())
+        #plt.imshow(Cprior)
+        #plt.savefig('/home/b/b382105/test/ColumnFLEXPART/columnflexpart/scripts/Cprior.png')
         self.Cprior = Cprior
         return Cprior
     
@@ -648,10 +686,10 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         zero_block = np.zeros_like(fire_blockCO)
         #print(fire_blockCO)
         #print(fire_blockCO2)
-        plt.figure()
-        plt.imshow(fire_blockCO2, cmap = 'Greys')
-        plt.savefig('/home/b/b382105/test/ColumnFLEXPART/columnflexpart/scripts/rho.png')
-        plt.close()
+        #plt.figure()
+        #plt.imshow(fire_blockCO2, cmap = 'Greys')
+        #plt.savefig('/home/b/b382105/test/ColumnFLEXPART/columnflexpart/scripts/rho.png')
+        #plt.close()
 
         off_diag_fire = np.sqrt(area_weighted_errorsCO* area_weighted_errorsCO2)
         off_diag_fire_block = np.diag(off_diag_fire)
@@ -671,35 +709,35 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         # area bioreg: size of one inversion (CO or CO2, not both together)
         # prior errors
         if non_equal_region_size == True: 
-            print('per region')
+            #print('per region')
             errCO2, errCO = self.calc_errors_flat_area_weighted_scaled_to_mean_flux(area_bioreg)
             errCO2 = errCO2.stack(new=[self.time_coord, *self.spatial_valriables])
             errCO = errCO.stack(new=[self.time_coord, *self.spatial_valriables])
             #print('maximum error value: '+str(err.max()))
         else: 
-            print('not per region') # FÜR GEGRIDDEDE AUCH NOCH FLATTEN?!
+            #print('not per region') # FÜR GEGRIDDEDE AUCH NOCH FLATTEN?!
             errCO2, errCO = self.get_land_ocean_error(1/100000) # adapt CO2 and CO errors separately check 
             #print(err)
             #print('maximum error value: '+str(err.max()))
-        print('Initlaizing done')
+        #print('Initlaizing done')
         return errCO2, errCO 
     
     def get_non_area_weighted_rho_matrix(self,  CO2fire_error: float, COfire_error: float):
         '''
         return rho matrix with the given values on the diagonal for CO and CO2 fire. 1 corresponds to a 100% error.
         '''
-        sample_error = xr.DataArray(data=np.zeros((int(self.bioclass_mask.values.max()+1),len(self.flux_eco.week.values))),
-                                     coords=dict({ 'bioclass': ('bioclass',np.arange(0,int(self.bioclass_mask.values.max())+1)),
-                                     'week': ('week',self.flux_eco.week.values)})).stack(new=[self.time_coord, *self.spatial_valriables])
-        len_diag_flattened = sample_error.values.shape[0]
-        print(len_diag_flattened)
+        #sample_error = xr.DataArray(data=np.zeros((int(self.bioclass_mask.values.max()+1),len(self.flux_eco.week.values))),
+        #                             coords=dict({ 'bioclass': ('bioclass',np.arange(0,int(self.bioclass_mask.values.max())+1)),
+        #                             'week': ('week',self.flux_eco.week.values)})).stack(new=[self.time_coord, *self.spatial_valriables])
+        #len_diag_flattened = sample_error.values.shape[0]
+        #print(len_diag_flattened)
 
         len_diag_flattened = int(self.bioclass_mask.values.max()+1)
 
         fireCO_diag = np.ones(len_diag_flattened) * COfire_error
         fireCO_diag[0] = fireCO_diag[0]/10000000 
         fireCO = np.diag(fireCO_diag)
-        print(fireCO)
+        #print(fireCO)
         fireCO2_diag = np.ones(len_diag_flattened) * CO2fire_error
         fireCO2_diag[0] = fireCO2_diag[0]/10000000 
         fireCO2 = np.diag(fireCO2_diag)
@@ -747,14 +785,16 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
                                coords = dict(final_regions =(["final_regions"], self.footprints_flat.final_regions.values),
                                               final_regions2 =(["final_regions2"], self.footprints_flat.final_regions.values)))
         
-        print(rho_prior)
+        #print(rho_prior)
+        #plt.imshow(rho_prior)
+        #plt.savefig('/home/b/b382105/test/ColumnFLEXPART/columnflexpart/scripts/rho_prior.png')
         self.rho_prior = rho_prior
         return rho_prior
 
     def get_prior_covariace_matrix(self, non_equal_region_size, area_bioreg): 
         #errCO2, errCO = self.get_prior_flux_errors(non_equal_region_size, area_bioreg)
         #rho = self.get_rho_prior_matrix(errCO2, errCO)
-        rho = self.get_non_area_weighted_rho_matrix(0.5,0.5)
+        rho = self.get_non_area_weighted_rho_matrix(1,1)
         #(rho.where(rho != 0, drop = True))
         Cprior = self.get_Cprior_matrix()
         #print(Cprior.where(Cprior != 0, drop = True))
@@ -764,6 +804,8 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
        # print('rho')
        # print(rho)
         prior_cov = rho * Cprior
+        #plt.imshow(prior_cov)
+        #plt.savefig('/home/b/b382105/test/ColumnFLEXPART/columnflexpart/scripts/prior_cov.png')
        # print(prior_cov)
         return prior_cov # hat Dimension flattened week, final_regions x flattened week, final regions, 
         #  die heißen final_regions und final_regions2, in FP etc heißt die Dimension 'new'
@@ -873,3 +915,24 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         )
         #self.prediction_errs = self.prediction_errs_flat.unstack("new")
         return self.predictions
+    
+    def map_on_gridded_grid(self, xarr: xr.DataArray) -> xr.DataArray:#[self.time_coord]
+        mapped_xarr = xr.DataArray(
+        data = np.zeros(
+            (
+                # len(xarr[self.time_coord]),
+                len(self.gridded_mask.longitude),
+                len(self.gridded_mask.latitude)
+            )
+        ),
+        coords = {
+            #self.time_coord: xarr[self.time_coord], 
+            "longitude": self.gridded_mask.longitude, 
+            "latitude": self.gridded_mask.latitude
+        }
+        )
+        for bioclass in xarr.bioclass:
+            mapped_xarr = mapped_xarr + (self.gridded_mask == bioclass) * xarr.where(xarr.bioclass == bioclass, drop=True)
+            mapped_xarr = mapped_xarr.squeeze(drop=True)
+        return mapped_xarr
+

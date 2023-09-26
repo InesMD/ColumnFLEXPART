@@ -31,6 +31,17 @@ def split_eco_flux(Inversion):
 
         return fluxCO2_fire*10**-6, fluxCO2_bio*10**-6, fluxCO_fire*10**-9, fluxCO_bio*10**-9
 
+def split_gridded_flux(Inversion):
+        #print(Inversion.flux_grid.shape)
+        flux_eco = Inversion.flux_grid[:,Inversion.flux_grid.week == Inversion.week]
+        number_of_reg = 699
+        fluxCO2_fire = flux_eco[:number_of_reg].rename(dict(final_regions = 'bioclass')).assign_coords(bioclass = np.arange(0,number_of_reg)) 
+        fluxCO2_bio = flux_eco[number_of_reg:2*number_of_reg].rename(dict(final_regions = 'bioclass')).assign_coords(bioclass = np.arange(0,number_of_reg))
+        fluxCO_fire = flux_eco[2*number_of_reg: 3*number_of_reg].rename(dict(final_regions = 'bioclass')).assign_coords(bioclass = np.arange(0,number_of_reg))
+        fluxCO_bio = flux_eco[3*number_of_reg:].rename(dict(final_regions = 'bioclass')).assign_coords(bioclass = np.arange(0,number_of_reg))
+
+        return fluxCO2_fire*10**-6, fluxCO2_bio*10**-6, fluxCO_fire*10**-9, fluxCO_bio*10**-9
+
 def get_averaging_kernel(self, reduce: bool=False, only_cols: bool=False):
         ak = self.reg.get_averaging_kernel()
         if reduce:
@@ -76,6 +87,8 @@ def calculate_and_plot_averaging_kernel(Inversion, savepath, alpha):
         savename = str("{:e}".format(alpha))+'_ak_spatial_'+name_list[idx]+'.png'
         plot_averaging_kernel(Inversion,ak,Inversion.number_of_reg, savepath, savename)
 
+
+
 def plot_spatial_result(spatial_result, savepath, savename, cmap, vmax =None, vmin =None, cbar_kwargs = {'shrink':  0.835}):
     '''
     for weekly spatial plotting of fluxes, saves plot 
@@ -95,20 +108,23 @@ def plot_spatial_result(spatial_result, savepath, savename, cmap, vmax =None, vm
     plt.savefig(savepath+savename, bbox_inches = 'tight', dpi = 250)
     plt.close()
 
-def plot_prior_spatially(Inversion, flux, name, idx, savepath):
+def plot_prior_spatially(Inversion, flux, name, idx, savepath, eco = True):
     plt.rcParams.update({'font.size':15})    
     factor = 10**6*12 
     #lux_mean = Inversion.flux_eco[:,Inversion.flux_eco.week == Inversion.week]*factor
-    spatial_flux = Inversion.map_on_grid(flux*factor)
+    if eco: 
+        spatial_flux = Inversion.map_on_grid(flux*factor)
+    else: 
+        spatial_flux = Inversion.map_on_gridded_grid(flux*factor)
     savename = 'Prior_'+name+'_spatial_week'+str(Inversion.week)+'.png'
     #plot_spatial_result(spatial_flux, savepath,savename, 'seismic', vmax = 0.2, vmin = -0.2, cbar_kwargs = {'label' : r'weekly flux [$\mu$gC m$^{-2}$s$^{-1}$]', 'shrink': 0.835}  )
 
     if idx == 0: 
-        plot_spatial_result(spatial_flux, savepath,savename, 'seismic', vmax = 10, vmin = -10, cbar_kwargs = {'label' : r'weekly flux [$\mu$gC m$^{-2}$s$^{-1}$]', 'shrink': 0.835}  )
+        plot_spatial_result(spatial_flux, savepath,savename, 'seismic', vmax = 30, vmin = -30, cbar_kwargs = {'label' : r'weekly flux [$\mu$gC m$^{-2}$s$^{-1}$]', 'shrink': 0.835}  )
     elif idx == 1:
         plot_spatial_result(spatial_flux, savepath,savename, 'seismic', vmax = 10, vmin = -10, cbar_kwargs = {'label' : r'weekly flux [$\mu$gC m$^{-2}$s$^{-1}$]', 'shrink': 0.835}  )
     elif idx == 2:
-        plot_spatial_result(spatial_flux, savepath,savename, 'seismic', vmax = 1, vmin = -1, cbar_kwargs = {'label' : r'weekly flux [$\mu$gC m$^{-2}$s$^{-1}$]', 'shrink': 0.835}  )
+        plot_spatial_result(spatial_flux, savepath,savename, 'seismic', vmax = 10, vmin = 10, cbar_kwargs = {'label' : r'weekly flux [$\mu$gC m$^{-2}$s$^{-1}$]', 'shrink': 0.835}  )
     elif idx == 3:
         plot_spatial_result(spatial_flux, savepath,savename, 'seismic', vmax = 0.4, vmin = -0.4, cbar_kwargs = {'label' : r'weekly flux [$\mu$gC m$^{-2}$s$^{-1}$]', 'shrink': 0.835}  )
 
@@ -247,14 +263,56 @@ def multiply_footprints_with_fluxes_for_concentrations(Inversion, flux, footprin
     conc_tot = conc_sum + background
 
     return conc_tot
+
+def multiply_K_with_scaling_factors_for_concentrations(Inversion, flux, footprints, factor, background):
+    #print(footprints)
+    footprints_flat = footprints.stack(new=[Inversion.time_coord, *Inversion.spatial_valriables])
+    #print(footprints_flat)
+    #print(flux)
+    concentration_results = footprints_flat.values*factor#*flux.values
+    #print('concentration results')
+    #print(concentration_results)
+    #print(concentration_results.shape)
+    conc_sum = concentration_results.sum(axis = 1)
+    #print(conc_sum)
+    conc_tot = conc_sum + background
+
+    return conc_tot
     
+
+def calc_conc_by_multiplication_with_K(Inversion):
+    K = Inversion.K.where((Inversion.K.week == Inversion.week), drop = True)
+    
+    conc = K.dot(Inversion.predictions_flat.rename(dict(bioclass = 'final_regions')))
+
+    prior_conc = K.dot(xr.ones_like(Inversion.predictions_flat.rename(dict(bioclass = 'final_regions'))))
+
+    predictions_CO2, predictions_CO = Inversion.select_relevant_times()
+
+    #number of CO measurements: 
+    nmeas = len(predictions_CO['background_inter'][:])
+
+    concCO2 = conc[:nmeas,0]+predictions_CO2['background_inter']
+    concCO = conc[nmeas:,0]+predictions_CO['background_inter']
+
+    priorCO2 = prior_conc[:nmeas,0]+predictions_CO2['background_inter']
+    priorCO = prior_conc[nmeas:,0]+predictions_CO['background_inter']
+
+    #CO2_fire = concCO2[:nmeas/2]
+    #CO2_bio = concCO2[Inversion.number_of_reg:Inversion.number_of_reg*2]
+    #CO_fire = concCO[:Inversion.number_of_reg]
+    #CO_bio = concCO[Inversion.number_of_reg:Inversion.number_of_reg*2]
+    return concCO2, concCO, priorCO2, priorCO, predictions_CO, predictions_CO2#CO2_fire, CO2_bio, CO_fire, CO_bio
+
+
+
 
 def calc_concentrations(Inversion, pred_fire, pred_bio, flux_fire, flux_bio, molecule_name,alpha, savepath):
     'for either CO or CO2 not both at the same time'
     datapath_predictions = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/'
     predictions_CO2, predictions_CO = Inversion.select_relevant_times()
-    print('Inversion.footprints_eco')
-    print(Inversion.footprints_eco)
+    #print('Inversion.footprints_eco')
+    #print(Inversion.footprints_eco)
     if molecule_name == 'CO':
         ds = predictions_CO
         factor = 10**9 
@@ -290,18 +348,18 @@ def calc_concentrations(Inversion, pred_fire, pred_bio, flux_fire, flux_bio, mol
     conc_sum_fire_prior = multiply_footprints_with_fluxes_for_concentrations(Inversion, flux_fire.squeeze(dim='week').drop('week'), 
                                                                     footprints_fire, factor, ds['background_inter'])
     
-    print(Inversion.footprints_eco)
-    print(Inversion.footprints_eco.where(Inversion.footprints_eco.week == Inversion.week, drop = True))
+    #print(Inversion.footprints_eco)
+    #print(Inversion.footprints_eco.where(Inversion.footprints_eco.week == Inversion.week, drop = True))
 
-    conc_sum_bio = multiply_footprints_with_fluxes_for_concentrations(Inversion, flux_bio.squeeze(dim='week').drop('week')*pred_bio, 
-                                                                      Inversion.footprints_eco.where(Inversion.footprints_eco.week == Inversion.week, drop = True), factor, ds['background_inter'])
+    #conc_sum_bio = multiply_footprints_with_fluxes_for_concentrations(Inversion, flux_bio.squeeze(dim='week').drop('week')*pred_bio, 
+    #                                                                  Inversion.footprints_eco.where(Inversion.footprints_eco.week == Inversion.week, drop = True), factor, ds['background_inter'])
     
-    conc_sum_fire = multiply_footprints_with_fluxes_for_concentrations(Inversion, flux_fire.squeeze(dim='week').drop('week')*pred_fire, 
-                                                                     Inversion.footprints_eco.where(Inversion.footprints_eco.week == Inversion.week, drop = True), factor, ds['background_inter'])
-    conc_sum_bio_prior = multiply_footprints_with_fluxes_for_concentrations(Inversion, flux_bio.squeeze(dim='week').drop('week'), 
-                                                                     Inversion.footprints_eco.where(Inversion.footprints_eco.week == Inversion.week, drop = True), factor, ds['background_inter'])
-    conc_sum_fire_prior = multiply_footprints_with_fluxes_for_concentrations(Inversion, flux_fire.squeeze(dim='week').drop('week'), 
-                                                                     Inversion.footprints_eco.where(Inversion.footprints_eco.week == Inversion.week, drop = True), factor, ds['background_inter'])
+    #conc_sum_fire = multiply_footprints_with_fluxes_for_concentrations(Inversion, flux_fire.squeeze(dim='week').drop('week')*pred_fire, 
+    #                                                                 Inversion.footprints_eco.where(Inversion.footprints_eco.week == Inversion.week, drop = True), factor, ds['background_inter'])
+    #conc_sum_bio_prior = multiply_footprints_with_fluxes_for_concentrations(Inversion, flux_bio.squeeze(dim='week').drop('week'), 
+    #                                                                 Inversion.footprints_eco.where(Inversion.footprints_eco.week == Inversion.week, drop = True), factor, ds['background_inter'])
+    #conc_sum_fire_prior = multiply_footprints_with_fluxes_for_concentrations(Inversion, flux_fire.squeeze(dim='week').drop('week'), 
+    #                                                                 Inversion.footprints_eco.where(Inversion.footprints_eco.week == Inversion.week, drop = True), factor, ds['background_inter'])
 
 
 
@@ -358,14 +416,23 @@ def plot_fire_bio_concentrations(df, ds, savepath, alpha, molecule_name):
     plt.savefig(savepath+str("{:e}".format(alpha))+'_'+molecule_name+'_concentrations_results.png', dpi = 300, bbox_inches = 'tight')
 
 
-def plot_total_concentrations(df, ds, savepath, alpha, molecule_name): 
+def plot_total_concentrations(conc_tot, prior_tot, ds, savepath, alpha, molecule_name): 
     if molecule_name == 'CO':
         y = 35
+        unit = 'ppb'
     elif molecule_name == 'CO2': 
         y = 407
+        unit = 'ppm'
     else:
         raise Exception('Molecule name not defined, only Co and CO2 allowed')
+    
 
+    ############create pandas Dataframe for plotting convenience #######
+    df = pd.DataFrame(data =conc_tot.values, columns = ['conc'])
+    df.insert(loc = 1, column ='prior', value = prior_tot.values)
+    df.insert(loc = 1, column = 'time', value = ds['time'])
+    df.insert(loc = 1, column = 'measurement_uncertainty', value = ds['measurement_uncertainty'])
+    df.insert(loc = 1, column = 'xco2_measurement', value = ds['xco2_measurement'])
 
     plt.rcParams.update({'font.size':18})   
     plt.rcParams.update({'errorbar.capsize': 5})
@@ -383,7 +450,7 @@ def plot_total_concentrations(df, ds, savepath, alpha, molecule_name):
                 rotation=45)#datetime(year = 2020, month = 1, day = 4)
     ax.set_xlim(left =  datetime.datetime(year = 2019, month = 11, day=30), right = datetime.datetime(year = 2019, month = 12, day=31, hour = 15))
     ax.grid(axis = 'both')
-    ax.set_ylabel('concentration [ppm]', labelpad=6)
+    ax.set_ylabel('concentration ['+unit+']', labelpad=6)
     ax.errorbar(x= datetime.datetime(year =2019, month = 12, day = 31, hour = 4), y = y, yerr = ds['measurement_uncertainty'].mean(), marker = '.',markersize = 7,linestyle='None',color = 'dimgrey')
     plt.xlabel('date')
 
@@ -399,7 +466,7 @@ def plot_total_concentrations(df, ds, savepath, alpha, molecule_name):
     ax2.grid(axis='x')
   
     plt.subplots_adjust(hspace=0)
-    plt.savefig(savepath+str("{:e}".format(alpha))+'_'+molecule_name+'_total_concentrations_results.png', dpi = 300, bbox_inches = 'tight')
+    plt.savefig(savepath+str("{:e}".format(alpha))+'_'+molecule_name+'_total_concentrations_results_total_K_times_scaling.png', dpi = 300, bbox_inches = 'tight')
 
 
 
@@ -421,9 +488,9 @@ def plot_single_concentrations(Inversion, pred_fire, pred_bio,flux_fire, flux_bi
     return
 
 def plot_single_total_concentrations(Inversion, pred_fire, pred_bio,flux_fire, flux_bio, molecule_name, alpha, savepath):
-
+    '''
     conc_tot_fire, conc_tot_bio, prior_fire, prior_bio, ds = calc_concentrations(Inversion, pred_fire, pred_bio, flux_fire, flux_bio,molecule_name,alpha, savepath)
- 
+    
     conc_tot = conc_tot_fire - ds['background_inter'] + conc_tot_bio
     #print('fire prior')
     #print(prior_fire)
@@ -432,17 +499,17 @@ def plot_single_total_concentrations(Inversion, pred_fire, pred_bio,flux_fire, f
     #print('background')
     #print(ds['background'])
     #print('prior_tot')
-
+    
     prior_tot = prior_fire - ds['background_inter'] + prior_bio
-    print(prior_tot)
-    df = pd.DataFrame(data =conc_tot.values, columns = ['conc'])
-    df.insert(loc = 1, column ='prior', value = prior_tot.values)
-    df.insert(loc = 1, column = 'time', value = ds['time'])
-    df.insert(loc = 1, column = 'measurement_uncertainty', value = ds['measurement_uncertainty'])
-    df.insert(loc = 1, column = 'xco2_measurement', value = ds['xco2_measurement'])
+    #print(prior_tot)
+   '''
+    conc_totCO2, conc_totCO, priorCO2, priorCO, dsCO, dsCO2 = calc_conc_by_multiplication_with_K(Inversion)
+    
 
-    plot_total_concentrations(df, ds, savepath, alpha, molecule_name)
-   
+
+    plot_total_concentrations(conc_totCO2, priorCO2, dsCO2, savepath, alpha, 'CO2')
+    plot_total_concentrations(conc_totCO, priorCO, dsCO, savepath, alpha, 'CO')
+
     return 
 '''
 def get_loss_terms(Regression, x):## muss noch angepasst werden 
@@ -544,18 +611,18 @@ def plot_l_curve(Inversion, molecule_name, savepath, alpha, err = None):
     # [1e-8,2.5e-8,5e-8,1e-7,2.5e-7,5.92e-7,1e-6,2.5e-6,5e-6,1e-5,2.5e-5,5e-5,1e-4,2.5e-4,5e-4,1e-3,2.5e-3,4.32e-3,1e-2,2.5e-2,5e-2,1e-1,1.5e-1,5e-1,1]
 
     #1e-60,1e-55,1e-52,1e-50,1e-45,1e-40,1e-38, 1e-36, 1e-35,1e-34,1e-33,1e-32,1e-31, 5e-31, 2e-30,1e-29,5e-29, 1e-28,5e-28,1e-27,1e-26,5e-26, 1e-25,5e-25,1e-24, 1e-23,1e-22,1e-21, 1e-20,1e-19,1e-18, 1e-17,
-    print('compute l curve')
+    #print('compute l curve')
     #print(Inversion.reg.compute_l_curve())
-    inv_result = Inversion.reg.compute_l_curve(alpha_list =[1e-8,4e-8,1e-7,4e-7,1e-6,4e-6,1e-5,4e-5, 1e-4,4e-4,1e-3,4e-3,1e-2,4e-2, 1e-1,4e-1, 1,4, 10], cond = 1e-14)
+    inv_result = Inversion.reg.compute_l_curve(alpha_list =[1e-8,4e-8,1e-7,4e-7,1e-6,4e-6,1e-5,4e-5, 1e-4,4e-4,1e-3,4e-3,1e-2,4e-2, 1e-1,4e-1, 1,4, 10, 40, 100, 400,1000], cond = 1e-14)
     
     #self.l_curve_result = reg.compute_l_curve(alpha, cond)
     #self.alpha = alpha
     
-    print(len(inv_result['loss_regularization']))
+    #print(len(inv_result['loss_regularization']))
     #inv_result = Inversion.compute_l_curve(alpha = [3e-19,1e-18,3e-18,1e-17,3e-17,1e-16,3e-16,1e-15,3e-15,1e-14, 5e-14,1e-13, 5e-13, 1e-12, 1e-11,3e-11,1e-10,5e-10,1e-9,4e-9,1e-8,2.5e-8,5e-8,1e-7,2e-7,
     #                                                5e-7,1e-6,2.5e-6,5e-6,1e-5,2.5e-5,5e-5,1e-4,2.5e-4,5e-4,1e-3,2.5e-3,4.32e-3,1e-2,2.5e-2,5e-2,1e-1,1.5e-1,5e-1,1], xerr = err)
     #inv_result = Inversion.compute_l_curve(alpha = [1e-17,5e-17,1e-16,5e-16,1e-15,5e-15,1e-14, 5e-14,1e-13, 5e-13, 1e-12, 5e-12,1e-11,5e-11,1e-10,5e-10,1e-9,4e-9,1e-8,2.5e-8,5e-8,1e-7,2e-7,5e-7,1e-6,2.5e-6,5e-6,1e-5,2.5e-5,5e-5,1e-4,2.5e-4,5e-4,1e-3,2.5e-3,4.32e-3,1e-2,2.5e-2,5e-2,1e-1,1.5e-1,5e-1,1], xerr = err)
-    print('Plotting')
+    #print('Plotting')
     plt.figure(figsize=(10,8))
     #print(inv_result)
     #plt.scatter(inv_result["loss_regularization"],inv_result["loss_forward_model"])
@@ -572,7 +639,7 @@ def plot_l_curve(Inversion, molecule_name, savepath, alpha, err = None):
     #fig, ax = Inversion.plot_l_curve(mark_ind = 17, mark_kwargs= dict(color = 'firebrick',label = r'$\lambda =1 \cdot 10^{-3}$'))
     #plt.grid(axis = 'y', color = 'grey', linestyle = '--' )
     plt.legend()
-    print('saving')
+    #print('saving')
     plt.savefig(savepath+str("{:e}".format(alpha))+'_'+molecule_name+'_err_per_reg_l_curve_xerr_extended2_middle.png')
 
 
