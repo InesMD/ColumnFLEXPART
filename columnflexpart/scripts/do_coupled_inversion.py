@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 from columnflexpart.scripts.plotting_routine_coupled_split_inversion import plot_spatial_flux_results_or_diff_to_prior, plot_averaging_kernel,plot_input_mask,plot_weekly_concentrations, plot_single_concentrations
 from columnflexpart.scripts.plotting_routine_coupled_split_inversion import split_eco_flux, split_predictions,  plot_prior_spatially, plot_single_total_concentrations, calculate_and_plot_averaging_kernel, plot_l_curve, split_gridded_flux
-from columnflexpart.scripts.plotting_routine_coupled_split_inversion import calc_conc_by_multiplication_with_K
+from columnflexpart.scripts.plotting_routine_coupled_split_inversion import calc_total_conc_by_multiplication_with_K
 
 
 def do_everything(savepath, Inversion, molecule_name, mask_datapath_and_name, week_min, week_max, week_num):
@@ -18,13 +18,14 @@ def do_everything(savepath, Inversion, molecule_name, mask_datapath_and_name, we
     #l2 =5e-1
     #l2 = 2e-2
     #l3 = 1e-2
-    l1 = 1e-2
-    l2 = 1e-1
+    l1 = 3.3e-3
+    #2 = 3.2e-3
+    #l3 = 5e-3
     #l3 = 1
     #l4 = 1e-4
     #l5 = 5e-4
     #l6 = 5e-5
-    for l in [l1,l2]:#,l3,l4,l5,l6]:#, l2]:#, l3]:#1, l2]:#,l2,l3]:
+    for l in [l1]:#,l2]:#,l3,l4,l5,l6]:#, l2]:#, l3]:#1, l2]:#,l2,l3]:
         print('fitting')
         predictions = Inversion.fit(alpha = l)#, xerr = err) 
         Inversion.predictions_flat = Inversion.predictions_flat.rename(dict(new = 'bioclass'))
@@ -58,18 +59,14 @@ def do_everything(savepath, Inversion, molecule_name, mask_datapath_and_name, we
             #plot_averaging_kernel(Inversion, l, class_num, week_num,savepath, plot_spatially=True)
 
         print('Plotting concentrations')
-        #concCO2, CO = calc_conc_by_multiplication_with_K(Inversion)
-        #print(concCO2)
-        #print(CO)
-        #print(CO_fire)
-        #print(CO_bio)
-        #plot_single_concentrations(Inversion, predictionsCO_fire, predictionsCO_bio, fluxCO_fire, fluxCO_bio, 'CO',l, savepath)
+        total_CO2, total_CO = plot_single_concentrations(Inversion, l, savepath)
         #plot_single_concentrations(Inversion, predictionsCO2_fire, predictionsCO2_bio, fluxCO2_fire,fluxCO2_bio, 'CO2',l, savepath)
-        plot_single_total_concentrations(Inversion, predictionsCO2_fire, predictionsCO2_bio, fluxCO2_fire,fluxCO2_bio, 'CO2',l, savepath)
-        plot_single_total_concentrations(Inversion, predictionsCO_fire, predictionsCO_bio, fluxCO_fire, fluxCO_bio, 'CO',l, savepath)
+        CO2, CO = plot_single_total_concentrations(Inversion,l, savepath)
+
+        #plot_single_total_concentrations(Inversion, predictionsCO_fire, predictionsCO_bio, fluxCO_fire, fluxCO_bio, 'CO',l, savepath)
                 
         calculate_and_plot_averaging_kernel(Inversion,savepath,l)
-        #plot_l_curve(Inversion, molecule_name, savepath, l, err = None)
+        plot_l_curve(Inversion, molecule_name, savepath, l, err = None)
 
 
         #plot_single_concentrations(Inversion,  'CO',l, savepath)
@@ -79,7 +76,7 @@ def do_everything(savepath, Inversion, molecule_name, mask_datapath_and_name, we
 
 ######################### adapt stuff from here on ####################################
 
-savepath = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/Images_coupled_Inversion/everything_splitted_first_correlation_setup_weekly_inversion/CO_like_CO2_prior/test1/Check_prior_errors_0/'
+savepath = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/Images_coupled_Inversion/everything_splitted_first_correlation_setup_weekly_inversion/CO_like_CO2_prior/Working_Setup/CO2_200_CO_200/CO2_2_CO_6/'
 mask = "/home/b/b382105/ColumnFLEXPART/resources/Ecosystems_AK_based_split_with_21_and_20_larger_and_4_split.nc"#OekomaskAU_Flexpart_version8_all1x1"#Ecosystems_AK_based_split_with_21_and_20_larger.nc"#OekomaskAU_Flexpart_version8_all1x1"#Ecosystems_AK_based_split_with_21_and_20_larger.nc"
 non_equal_region_size = True
 

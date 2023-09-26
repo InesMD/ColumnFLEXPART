@@ -208,7 +208,7 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         )
         ########### added to see influence of concentration errors ############
         concentration_errsCO2 = list(np.ones(len(concentration_errsCO2))*2)# 2 ppm
-        concentration_errsCO = list(np.ones(len(concentration_errsCO2))*3)#3 ppb
+        concentration_errsCO = list(np.ones(len(concentration_errsCO2))*6)#3 ppb
         ####################################################################### 
 
         concentration_errs  = xr.DataArray(
@@ -794,7 +794,7 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
     def get_prior_covariace_matrix(self, non_equal_region_size, area_bioreg): 
         #errCO2, errCO = self.get_prior_flux_errors(non_equal_region_size, area_bioreg)
         #rho = self.get_rho_prior_matrix(errCO2, errCO)
-        rho = self.get_non_area_weighted_rho_matrix(1,1)
+        rho = self.get_non_area_weighted_rho_matrix(2,2)
         #(rho.where(rho != 0, drop = True))
         Cprior = self.get_Cprior_matrix()
         #print(Cprior.where(Cprior != 0, drop = True))
