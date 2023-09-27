@@ -355,7 +355,7 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
             date_str = str(date).replace("-", "")
             flux_files.append(self.flux_pathCO2.parent / (self.flux_pathCO2.name + f"{date_str}.nc"))
         flux = xr.open_mfdataset(flux_files, drop_variables="time_components").compute()
-        #print(flux.bio_flux_opt)
+        print(flux.bio_flux_opt)
 
         flux_bio_fossil = flux.bio_flux_opt + flux.ocn_flux_opt + flux.fossil_flux_imp
         flux_fire = flux.fire_flux_imp
@@ -522,7 +522,7 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         #print('fire grid CO2')
         #print(fire_grid_CO2)
         fire_eco_CO2 = flux_meanCO2_eco.where(flux_meanCO2_eco.final_regions <= int(flux_meanCO2_eco.final_regions.values.max()/2), drop = True)
-        factor_scaling_CO2_to_CO = 14.4**-1 *28.01/44.01 *10**3 # from Van de Velde Paper (14.4gCo2/gCO -> 14.4 *44/28 molCO2/molCO)and scaling ppm to ppb
+        factor_scaling_CO2_to_CO = (14.4*28.01/44.01)**-1 *10**3 # from Van de Velde Paper (14.4gCo2/gCO -> 14.4 *44/28 molCO2/molCO)and scaling ppm to ppb
         return fire_grid_CO2*factor_scaling_CO2_to_CO,  fire_eco_CO2*factor_scaling_CO2_to_CO
 
 

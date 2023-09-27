@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 import pandas as pd
 from matplotlib.dates import DateFormatter
+from matplotlib import colors
 
 def split_predictions(Inversion):
     predictionsCO2_fire = Inversion.predictions_flat[Inversion.predictions_flat['bioclass']<Inversion.predictions_flat['bioclass'].shape[0]/4]
@@ -89,7 +90,7 @@ def calculate_and_plot_averaging_kernel(Inversion, savepath, alpha):
 
 
 
-def plot_spatial_result(spatial_result, savepath, savename, cmap, vmax =None, vmin =None, cbar_kwargs = {'shrink':  0.835}):
+def plot_spatial_result(spatial_result, savepath, savename, cmap, vmax =None, vmin =None, cbar_kwargs = {'shrink':  0.835}, norm = None):
     '''
     for weekly spatial plotting of fluxes, saves plot 
     spatial_result : xarray to plot with latitude and longitude as coordinates
@@ -99,7 +100,7 @@ def plot_spatial_result(spatial_result, savepath, savename, cmap, vmax =None, vm
     '''
     plt.figure()
     ax = plt.axes(projection=ccrs.PlateCarree())  
-    spatial_result.plot(x = 'longitude', y = 'latitude', ax = ax, cmap =cmap,vmin = vmin, vmax = vmax, 
+    spatial_result.plot(x = 'longitude', y = 'latitude', ax = ax, cmap =cmap,vmin = vmin, vmax = vmax, norm = norm,
                             cbar_kwargs = cbar_kwargs)
     
     plt.scatter(x = 150.8793,y =-34.4061,color="black")
@@ -128,8 +129,28 @@ def plot_prior_spatially(Inversion, flux, name, idx, savepath, eco = True):
     elif idx == 3:
         plot_spatial_result(spatial_flux, savepath,savename, 'seismic', vmax = 0.4, vmin = -0.4, cbar_kwargs = {'label' : r'weekly flux [$\mu$gC m$^{-2}$s$^{-1}$]', 'shrink': 0.835}  )
 
+def plot_emission_ratio(savepath, Inversion, predictionsCO2, predictionsCO, alpha, fluxCO2, fluxCO):
+    # scaling factors
+    predictions = predictionsCO2/predictionsCO
+    spatial_result = Inversion.map_on_grid(predictions)# gleichwer name Feuer und nicht feuer
+    savename = str("{:e}".format(alpha))+"_ratio_CO2_over_CO_Scaling_factor_"+str(Inversion.week)+".png"
 
-
+    max_value = max(abs(spatial_result.values.max()-1), abs(1-spatial_result.values.min()))
+    divnorm=colors.TwoSlopeNorm(vmin = 1-max_value, vcenter=1, vmax = 1+max_value)
+ 
+    plot_spatial_result(spatial_result, savepath, savename, 'coolwarm', norm = divnorm)
+    # flux: # für eco setup 
+    spatial_flux = Inversion.map_on_grid(predictionsCO2/predictionsCO * fluxCO2/fluxCO*44/28)
+    savename = str("{:e}".format(alpha))+"_ratio_CO2_over_CO_flux_"+str(Inversion.week)+".png"
+    max_value = max(abs(spatial_flux.values.max()-14.4), abs(14.4-spatial_flux.values.min()))
+    divnorm=colors.TwoSlopeNorm(vmin = 14.4-max_value, vcenter=14.4, vmax = 14.4+max_value)
+    plot_spatial_result(spatial_flux, savepath, savename, 'coolwarm',  cbar_kwargs = {'label' : r'$\Delta$CO$_2$/$\Delta$CO [gCO$_2$/gCO]', 'shrink': 0.835} ,norm = divnorm)
+    divnorm=colors.TwoSlopeNorm(vmin = 14.4-1, vcenter=14.4, vmax = 14.4+1)
+    savename = str("{:e}".format(alpha))+"_ratio_CO2_over_CO_flux_cut_cbar_"+str(Inversion.week)+".png"
+    plot_spatial_result(spatial_flux, savepath, savename, 'coolwarm',  cbar_kwargs = {'label' : r'$\Delta$CO$_2$/$\Delta$CO [gCO$_2$/gCO]', 'shrink': 0.835} ,norm = divnorm)
+    #spatial_resultCO = Inversion.map_on_grid(predictionsCO)
+    
+    return
 
 def plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion, predictions,flux, name, idx, alpha, diff =False):
     factor = 12*10**6
