@@ -4,10 +4,11 @@ import datetime
 import numpy as np
 import xarray as xr
 import matplotlib.pyplot as plt
+import pandas as pd
 import cartopy.crs as ccrs
 from columnflexpart.scripts.plotting_routine_coupled_split_inversion import plot_spatial_flux_results_or_diff_to_prior, plot_averaging_kernel,plot_input_mask,plot_weekly_concentrations, plot_single_concentrations
 from columnflexpart.scripts.plotting_routine_coupled_split_inversion import split_eco_flux, split_predictions,  plot_prior_spatially, plot_single_total_concentrations, calculate_and_plot_averaging_kernel, plot_l_curve, split_gridded_flux
-from columnflexpart.scripts.plotting_routine_coupled_split_inversion import plot_emission_ratio
+from columnflexpart.scripts.plotting_routine_coupled_split_inversion import plot_emission_ratio, split_output, plot_spatial_result
 
 
 def do_everything(savepath, Inversion, molecule_name, mask_datapath_and_name, week_min, week_max, week_num):
@@ -18,38 +19,43 @@ def do_everything(savepath, Inversion, molecule_name, mask_datapath_and_name, we
     #l2 =5e-1
     #l2 = 2e-2
     #l3 = 1e-2
-    l1 = 3e-2#3.3e-3
-    #2 = 3.2e-3
+    l1 = 2.4e-2#3.3e-3
+    l2 = 2.3e-2
+    l3 = 2.2e-2
+    l4 = 2.1e-2
     #l3 = 5e-3
     #l3 = 1
     #l4 = 1e-4
     #l5 = 5e-4
     #l6 = 5e-5
-    for l in [l1]:#,l2]:#,l3,l4,l5,l6]:#, l2]:#, l3]:#1, l2]:#,l2,l3]:
+    for l in [l1]:#,l2,l3,l4]:#,l2]:#,l3,l4,l5,l6]:#, l2]:#, l3]:#1, l2]:#,l2,l3]:
         print('fitting')
-        predictions = Inversion.fit(alpha = l)#, xerr = err) 
+        Inversion.fit(alpha = l)#, xerr = err) 
+
+        # save predictions
+        pred = pd.DataFrame(data =Inversion.predictions_flat.values, columns = ['predictions'])
+        pred.insert(loc = 1, column ='posterior_err_std', value = Inversion.prediction_errs_flat.values)
+        pred.insert(loc = 1, column ='prior_err_cov', value = np.diagonal(Inversion.flux_errs_flat.values))
+        pred.insert(loc = 1, column ='prior_err_cov_with_lambda', value = np.diagonal(Inversion.flux_errs_flat.values)/l)
+        pred.to_pickle(savepath + str(l)+'_predictions.pkl')
+        
         Inversion.predictions_flat = Inversion.predictions_flat.rename(dict(new = 'bioclass'))
         #plot_l_curve(Inversion,err,molecule_name,savepath, l)
-        predictionsCO2_fire, predictionsCO2_bio, predictionsCO_fire, predictionsCO_bio = split_predictions(Inversion)
-        fluxCO2_fire, fluxCO2_bio, fluxCO_fire, fluxCO_bio = split_eco_flux(Inversion)
+        predictions_list = split_output(Inversion.predictions_flat, 'bioclass')
+        fluxCO2_fire, fluxCO2_bio, fluxCO_fire, fluxCO_bio = split_eco_flux(Inversion) ### change to use split_output too 
+        post_std_list = split_output(Inversion.prediction_errs_flat, 'new')
+        prior_std_list = split_output(np.sqrt(np.diagonal(Inversion.flux_errs_flat.values)/l), 'new')
 
         flux_list = [fluxCO2_fire, fluxCO2_bio, fluxCO_fire, fluxCO_bio]
-        name_list = ['CO2_fire_small_prior', 'CO2_ant_bio_small_prior_', 'CO_fire_small_prior_', 'CO_ant_bio_small_prior']  
+        name_list = ['CO2_fire', 'CO2_ant_bio', 'CO_fire', 'CO_ant_bio']  
 
         fluxCO2_fire_grid, fluxCO2_bio_grid, fluxCO_fire_grid, fluxCO_bio_grid = split_gridded_flux(Inversion)
 
         flux_list_grid = [fluxCO2_fire_grid, fluxCO2_bio_grid, fluxCO_fire_grid, fluxCO_bio_grid]
-        name_list_grid = ['CO2_fire_small_prior_grid', 'CO2_ant_bio_small_prior_grid', 'CO_fire_small_prior_grid', 'CO_ant_bio_small_prior_grid']  
-
-        print('CO2_fire')
-        print(predictionsCO2_fire)
-        print('CO_fire')
-        print(predictionsCO_fire)
-        print('ratio flux')
-        print(fluxCO2_fire/fluxCO_fire*44/28*predictionsCO2_fire/predictionsCO_fire)
-        
-
-        for idx,predictions in enumerate([predictionsCO2_fire,predictionsCO2_bio,predictionsCO_fire,predictionsCO_bio]):
+        name_list_grid = ['CO2_fire_grid', 'CO2_ant_bio_grid', 'CO_fire_grid', 'CO_ant_bio_grid']  
+      
+ 
+        for idx,predictions in enumerate(predictions_list):
             print('Plotting prior spatially')
             plot_prior_spatially(Inversion, flux_list[idx],name_list[idx], idx, savepath)
             #plot_prior_spatially(Inversion, flux_list_grid[idx],name_list_grid[idx], idx,savepath, False)
@@ -60,11 +66,18 @@ def do_everything(savepath, Inversion, molecule_name, mask_datapath_and_name, we
             print('Plotting spatial results')
             plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion, predictions, flux_list[idx], name_list[idx],idx, l, diff =True)
 
+            print('Plot posterior std deviation')
+            plot_spatial_result(Inversion.map_on_grid(post_std_list[idx]), savepath, str(l)+'post_std_'+name_list[idx]+'.png', 'plasma', vmax =None, vmin =0, 
+                                cbar_kwargs = {'shrink':  0.835, 'label' : r'posterior standard deviation'}, norm = None)
+
+            #(prior variance(lambda considered) - posterior variance)/prior variance = (prior variance/lambda - post variance)/prior variance
+            print('Plot error variance reduction/Uncertainty reduction')
+
             print('Plotting averaging kernels') # not yet working?! CHeck results!!!!!!!!!!!!!!!! 
             #plot_averaging_kernel(Inversion, l, class_num, week_num,savepath, plot_spatially=False)# class_num
             #plot_averaging_kernel(Inversion, l, class_num, week_num,savepath, plot_spatially=True,weekly = True)
             #plot_averaging_kernel(Inversion, l, class_num, week_num,savepath, plot_spatially=True)
-        plot_emission_ratio(savepath, Inversion, predictionsCO2_fire, predictionsCO_fire, l, fluxCO2_fire, fluxCO_fire)
+        plot_emission_ratio(savepath, Inversion, predictions_list[0], predictions_list[2], l, fluxCO2_fire, fluxCO_fire)
         print('Plotting concentrations')
         total_CO2, total_CO = plot_single_concentrations(Inversion, l, savepath)
         #plot_single_concentrations(Inversion, predictionsCO2_fire, predictionsCO2_bio, fluxCO2_fire,fluxCO2_bio, 'CO2',l, savepath)
@@ -75,12 +88,12 @@ def do_everything(savepath, Inversion, molecule_name, mask_datapath_and_name, we
         calculate_and_plot_averaging_kernel(Inversion,savepath,l)
         plot_l_curve(Inversion, molecule_name, savepath, l, err = None)
         
-
+ 
         #plot_single_concentrations(Inversion,  'CO',l, savepath)
         #plot_weekly_concentrations(Inversion,'CO',l, savepath) # ist ziemlich hartgecoded gerade für Dezember!!!!!!!!!!
         #plot_weekly_concentrations(Inversion,'CO2',l, savepath)
 
-        
+
 ######################### adapt stuff from here on ####################################
 
 savepath = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/Images_coupled_Inversion/everything_splitted_first_correlation_setup_weekly_inversion/CO_like_CO2_prior/Working_Setup/CO2_200_CO_200/CO2_2_CO_6/'

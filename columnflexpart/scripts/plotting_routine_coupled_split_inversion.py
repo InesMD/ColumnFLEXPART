@@ -21,7 +21,24 @@ def split_predictions(Inversion):
     predictionsCO_fire = predictionsCO_fire.assign_coords(bioclass = np.arange(0,len(predictionsCO2_fire['bioclass'])))
     predictionsCO_bio = predictionsCO_bio.assign_coords(bioclass = np.arange(0,len(predictionsCO2_fire['bioclass'])))
 
-    return predictionsCO2_fire, predictionsCO2_bio, predictionsCO_fire, predictionsCO_bio
+    return [predictionsCO2_fire, predictionsCO2_bio, predictionsCO_fire, predictionsCO_bio]
+
+
+def split_output(xarray_to_split, variable_name: str):
+    predictionsCO2_fire = xarray_to_split[xarray_to_split[variable_name]<xarray_to_split[variable_name].shape[0]/4]
+    print(predictionsCO2_fire)
+    predictionsCO2_bio = xarray_to_split[(xarray_to_split[variable_name]<xarray_to_split[variable_name].shape[0]/2)
+                                                &(xarray_to_split[variable_name]>=xarray_to_split[variable_name].shape[0]/4)]
+    predictionsCO_fire = xarray_to_split[(xarray_to_split[variable_name]>=xarray_to_split[variable_name].shape[0]/2)
+                                               &(xarray_to_split[variable_name]<xarray_to_split[variable_name].shape[0]*3/4)]
+    predictionsCO_bio = xarray_to_split[(xarray_to_split[variable_name]>=xarray_to_split[variable_name].shape[0]*3/4)]
+
+    predictionsCO2_bio = predictionsCO2_bio.assign_coords(bioclass = np.arange(0,len(predictionsCO2_fire[variable_name])))
+    predictionsCO_fire = predictionsCO_fire.assign_coords(bioclass = np.arange(0,len(predictionsCO2_fire[variable_name])))
+    predictionsCO_bio = predictionsCO_bio.assign_coords(bioclass = np.arange(0,len(predictionsCO2_fire[variable_name])))
+
+    return [predictionsCO2_fire, predictionsCO2_bio, predictionsCO_fire, predictionsCO_bio]
+
 
 def split_eco_flux(Inversion):
         flux_eco = Inversion.flux_eco[:,Inversion.flux_eco.week == Inversion.week]
@@ -184,11 +201,11 @@ def plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion, predictions,
         spatial_flux = Inversion.map_on_grid(predictions * flux)*factor
 
         if idx == 0: 
-            plot_spatial_result(spatial_flux, savepath, savename, 'seismic',vmax = 600, vmin = -600, cbar_kwargs = {'label' : r'weekly flux [$\mu$gC m$^{-2}$ s$^{-1}$]', 'shrink':  0.835})
+            plot_spatial_result(spatial_flux, savepath, savename, 'seismic',vmax = 250, vmin = -250, cbar_kwargs = {'label' : r'weekly flux [$\mu$gC m$^{-2}$ s$^{-1}$]', 'shrink':  0.835})
         elif idx == 1:
             plot_spatial_result(spatial_flux, savepath, savename, 'seismic', vmax = 10, vmin = -10,cbar_kwargs = {'label' : r'weekly flux [$\mu$gC m$^{-2}$ s$^{-1}$]', 'shrink':  0.835})
         elif idx == 2:
-            plot_spatial_result(spatial_flux, savepath, savename, 'seismic',vmax = 30, vmin = -30, cbar_kwargs = {'label' : r'weekly flux [$\mu$gC m$^{-2}$ s$^{-1}$]', 'shrink':  0.835})
+            plot_spatial_result(spatial_flux, savepath, savename, 'seismic',vmax = 10, vmin = -10, cbar_kwargs = {'label' : r'weekly flux [$\mu$gC m$^{-2}$ s$^{-1}$]', 'shrink':  0.835})
         elif idx == 3:
             plot_spatial_result(spatial_flux, savepath, savename, 'seismic', vmax = 0.1, vmin = -0.1,cbar_kwargs = {'label' : r'weekly flux [$\mu$gC m$^{-2}$ s$^{-1}$]', 'shrink':  0.835})
 

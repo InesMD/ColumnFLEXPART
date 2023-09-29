@@ -736,17 +736,17 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
 
         fireCO_diag = np.ones(len_diag_flattened) * COfire_error
         fireCO_diag[0] = fireCO_diag[0]/10000000 
-        fireCO = np.diag(fireCO_diag)
+        fireCO = np.diag(fireCO_diag**2)
         #print(fireCO)
         fireCO2_diag = np.ones(len_diag_flattened) * CO2fire_error
         fireCO2_diag[0] = fireCO2_diag[0]/10000000 
-        fireCO2 = np.diag(fireCO2_diag)
+        fireCO2 = np.diag(fireCO2_diag**2)
 
-        off_diag_fire = np.sqrt(fireCO2_diag*fireCO_diag)
+        off_diag_fire = fireCO2_diag*fireCO_diag
         off_diag_fire_block = np.diag(off_diag_fire)
 
         bio_diag =  np.ones(len_diag_flattened)/10000000 
-        bio = np.diag(bio_diag)
+        bio = np.diag(bio_diag**2)
 
         zero_block = np.zeros_like(bio)
 
@@ -891,7 +891,7 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         """Uses bayesian inversion to estiamte emissions.
 
         Args:
-            yerr (Optional[list], optional): Can be used instead of loaded errorof measurement. Defaults to None.
+            yerr (Optional[list], optional): Can be used instead of loaded error of measurement. Defaults to None.
             xerr (Optional[list], optional): Can be used instead of error of the mean of the fluxes. Defaults to None.
             with_prior (Optional[bool]): Wether to use a prior or not. True strongly recommended. Defaults to True.
             alpha (Optional[float]): Value to weigth xerr against yerr. Is used as in l curve calculation. Defaults to 1.
@@ -912,9 +912,9 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
             data = np.sqrt(np.diag(self.get_posterior_covariance())),
             dims = ["new"],
             coords = dict(new=self.coords)
-        )
+        )# is std deviation 
         #self.prediction_errs = self.prediction_errs_flat.unstack("new")
-        return self.predictions
+        return #self.predictions
     
     def map_on_gridded_grid(self, xarr: xr.DataArray) -> xr.DataArray:#[self.time_coord]
         mapped_xarr = xr.DataArray(
