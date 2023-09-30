@@ -894,3 +894,41 @@ def plot_weekly_concentrations(Inversion, molecule_name,alpha, savepath):
 
     return
 
+
+def sensitivity_studies_correlation(): 
+
+    area_bioreg = [8.95512935e+13, 4.27021383e+11, 4.01383356e+12, 1.45736998e+12,
+    2.15745316e+11, 9.81395187e+09, 3.95111921e+10, 3.18183296e+10,
+    5.52121748e+10, 5.55915961e+10, 5.41460509e+10, 4.29887311e+10,
+    3.13764949e+10, 1.05335427e+10, 9.31980461e+10, 5.11758810e+10,
+    4.00158388e+10, 2.99495636e+10, 3.91250878e+10, 4.90667320e+10,
+    1.54614599e+11, 9.65077342e+10, 6.07622615e+10, 6.98377101e+10,
+    1.77802351e+11, 1.95969571e+11, 2.26322082e+11]
+
+    # influence of reg param to result: 
+    alpha = [0.0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0]
+    CO_fire = []
+    CO2_fire = []
+    for a in alpha: 
+        df = pd.read_pickle('/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/Images_coupled_Inversion/everything_splitted_first_correlation_setup_weekly_inversion/CO_like_CO2_prior/Working_Setup/CO2_200_CO_200/CO2_2_CO_6/Corr_'+str(a)+'/'+str("{:e}".format(0.1))+'_predictions.pkl')
+        CO_fire.append(np.array(df[int(108/2):int(3*108/4)]['prior_flux_eco']*df[int(108/2):int(3*108/4)]['predictions']*area_bioreg).sum()*12*10**(-12)*7*24*60*60*10**(-9))
+        CO2_fire.append(np.array(df[:int(108/4)]['prior_flux_eco']*df[:int(108/4)]['predictions']*area_bioreg).sum()*12*10**(-12)*7*24*60*60*10**(-6))
+
+    plt.figure(figsize = (8,6))
+    plt.grid()
+    plt.rcParams.update({'font.size': 19})
+    plt.plot(alpha[:], CO2_fire[:], label = r'CO$_2$ fire', marker = 'o',color = 'dimgrey')#'steelblue')#'darkblue')
+    plt.plot(alpha[:], CO_fire[:], label = 'CO fire', marker = 'o',color = 'forestgreen')#'teal')
+
+    #plt.xscale("log")
+    #plt.yscale("log")
+    #plt.ylim((0,400))
+    plt.xlabel('Correlation')
+    plt.ylabel('total emissions [TgC/week]')
+    plt.legend()
+
+    plt.savefig('/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/Images_coupled_Inversion/everything_splitted_first_correlation_setup_weekly_inversion/CO_like_CO2_prior/Working_Setup/Sensitivity_tests/sensitivity_corr_regular.png', 
+            facecolor = 'w', dpi = 200, bbox_inches = 'tight')
+    plt.show()
+    return
+
