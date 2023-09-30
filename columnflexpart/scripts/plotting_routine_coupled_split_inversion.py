@@ -8,6 +8,7 @@ import cartopy.crs as ccrs
 import pandas as pd
 from matplotlib.dates import DateFormatter
 from matplotlib import colors
+import matplotlib as mpl
 
 def split_predictions(Inversion):
     predictionsCO2_fire = Inversion.predictions_flat[Inversion.predictions_flat['bioclass']<Inversion.predictions_flat['bioclass'].shape[0]/4]
@@ -24,18 +25,19 @@ def split_predictions(Inversion):
     return [predictionsCO2_fire, predictionsCO2_bio, predictionsCO_fire, predictionsCO_bio]
 
 
-def split_output(xarray_to_split, variable_name: str):
-    predictionsCO2_fire = xarray_to_split[xarray_to_split[variable_name]<xarray_to_split[variable_name].shape[0]/4]
-    print(predictionsCO2_fire)
-    predictionsCO2_bio = xarray_to_split[(xarray_to_split[variable_name]<xarray_to_split[variable_name].shape[0]/2)
-                                                &(xarray_to_split[variable_name]>=xarray_to_split[variable_name].shape[0]/4)]
-    predictionsCO_fire = xarray_to_split[(xarray_to_split[variable_name]>=xarray_to_split[variable_name].shape[0]/2)
-                                               &(xarray_to_split[variable_name]<xarray_to_split[variable_name].shape[0]*3/4)]
-    predictionsCO_bio = xarray_to_split[(xarray_to_split[variable_name]>=xarray_to_split[variable_name].shape[0]*3/4)]
+def split_output(xarray_to_split, variable_name):
 
-    predictionsCO2_bio = predictionsCO2_bio.assign_coords(bioclass = np.arange(0,len(predictionsCO2_fire[variable_name])))
-    predictionsCO_fire = predictionsCO_fire.assign_coords(bioclass = np.arange(0,len(predictionsCO2_fire[variable_name])))
-    predictionsCO_bio = predictionsCO_bio.assign_coords(bioclass = np.arange(0,len(predictionsCO2_fire[variable_name])))
+    predictionsCO2_fire = xarray_to_split[xarray_to_split[variable_name]<int(xarray_to_split[variable_name].shape[0]/4)]
+    predictionsCO2_bio = xarray_to_split[(xarray_to_split[variable_name]<int(xarray_to_split[variable_name].shape[0]/2))
+                                                &(xarray_to_split[variable_name]>=int(xarray_to_split[variable_name].shape[0]/4))]
+    predictionsCO_fire = xarray_to_split[(xarray_to_split[variable_name]>=int(xarray_to_split[variable_name].shape[0]/2))
+                                               &(xarray_to_split[variable_name]<int(xarray_to_split[variable_name].shape[0]*3/4))]
+    predictionsCO_bio = xarray_to_split[(xarray_to_split[variable_name]>=int(xarray_to_split[variable_name].shape[0]*3/4))]
+
+    predictionsCO2_bio = predictionsCO2_bio.assign_coords({variable_name : np.arange(0,len(predictionsCO2_fire[variable_name]))}).rename({variable_name: 'bioclass'})
+    predictionsCO_fire = predictionsCO_fire.assign_coords({variable_name :  np.arange(0,len(predictionsCO2_fire[variable_name]))}).rename({variable_name: 'bioclass'})
+    predictionsCO_bio = predictionsCO_bio.assign_coords({variable_name : np.arange(0,len(predictionsCO2_fire[variable_name]))}).rename({variable_name: 'bioclass'})
+    predictionsCO2_fire = predictionsCO2_fire.rename({variable_name: 'bioclass'})
 
     return [predictionsCO2_fire, predictionsCO2_bio, predictionsCO_fire, predictionsCO_bio]
 
@@ -606,6 +608,75 @@ def plot_single_total_concentrations(Inversion, alpha, savepath):
     plot_total_concentrations(conc_totCO, priorCO, dsCO, savepath, alpha, 'CO')
 
     return conc_totCO2, conc_totCO
+
+
+def plot_difference_of_posterior_concentrations_to_measurements(Inversion, savepath, alpha):
+
+    plt.rcParams.update({'font.size' : 19 })
+
+    conc_totCO2, conc_totCO, priorCO2, priorCO, dsCO, dsCO2 = calc_total_conc_by_multiplication_with_K(Inversion)
+
+    diffCO2 = conc_totCO2.values - dsCO2['xco2_measurement']
+    diffCO = conc_totCO.values - dsCO['xco2_measurement']
+
+    df = pd.DataFrame(data = dsCO2['time'], columns = ['time'])
+
+    df.insert(loc= 1, value = diffCO2.values, column = 'diffCO2')
+    df.insert(loc= 1, column = 'CO2_meas', value = dsCO2['xco2_measurement'])
+    df.insert(loc= 1, value = np.array(diffCO)[:], column = 'diffCO')
+    print(df)
+
+    mask = (df['time']>=Inversion.date_min)&(df['time']<=Inversion.date_min+datetime.timedelta(days=7)) # selbe maske, da CO und CO2 genau gleich sortiert 
+    df = df[mask].reset_index()
+    df = df.sort_values(['time'], ascending = True).reset_index()
+    df.insert(loc = 1, column = 'date', value = df['time'][:].dt.strftime('%Y-%m-%d'))
+
+    # plotting 
+    fig, ax1 = plt.subplots(figsize = (17,7))
+    Xaxis = np.arange(0,2*len(df['time'][:]),2)
+    ax1.set_ylabel(r'$\Delta$CO$_2$ concentration [ppm]')
+    ax1.set_xlabel('date')
+    #ax1.tick_params(axis = 'y')
+    max_value = max(abs(df['diffCO2'].max()), abs(df['diffCO2'].min()))
+    ax1.set_ylim((-max_value*1.1, max_value*1.1))
+    lns1 = ax1.bar(Xaxis-0.3, df['diffCO2'], width = 0.6, color = 'gray',label = r'$\Delta$CO$_2$')
+
+    ax2 = ax1.twinx()
+    ax2.set_ylabel(r'$\Delta$CO concentration [ppb]')
+    max_value = max(abs(df['diffCO'].max()), abs(df['diffCO'].min()))
+    ax2.set_ylim((-max_value*1.1, max_value*1.1))
+    lns2 = ax2.bar(Xaxis+0.3, df['diffCO'], width = 0.6, color = 'cornflowerblue', alpha = 0.6, label = r'$\Delta$CO')
+    #ax2.tick_params(axis = 'y')# not great but ok 
+    ax2.set_xticks(Xaxis)
+
+    lines, labels = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax2.legend(lines + lines2, labels + labels2, loc='upper left')
+    # ticks
+    ticklabels = ['']*len(df['time'][:])
+    # Every 4th ticklable shows the month and day
+    ticklabels[0] = df['date'][0]
+    reference = df['date'][0]
+    for i in np.arange(1,len(df['time'][:])):
+        if df['date'][i]>reference:
+            ticklabels[i] = df['date'][i]
+            reference = df['date'][i]
+
+    ax2.xaxis.set_major_formatter(mpl.ticker.FixedFormatter(ticklabels))
+    plt.gcf().autofmt_xdate(rotation = 45)
+    #ax2.set_xticks(Xaxis, ticklabels)
+    #ax2.tick_params(axis = 'x', labelrotation = 30)
+
+    plt.axhline(y=0, color='k', linestyle='-')
+
+    fig.savefig(savepath+"{:e}".format(alpha)+"_diff_measurement_total_conc.png", dpi = 300, bbox_inches = 'tight')
+
+    return 
+
+
+
+
+
 '''
 def get_loss_terms(Regression, x):## muss noch angepasst werden 
     loss_regularization = (
