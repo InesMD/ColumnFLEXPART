@@ -116,6 +116,25 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
             print('Given date max '+str(self.date_max.date())+' is not in predictions (Maximum : '+str(predictionsCO_cut['time'].max())+')')
         return predictionsCO2_cut, predictionsCO_cut
     
+
+    '''
+    def select_times_one_week_only(self): 
+        #'''#returns: cropped predictionsCO and predicitons CO2 datasets for which measurements will be loaded later'''
+    '''
+        assert self.date_max >= self.date_min 
+        predictionsCO2 = pd.read_pickle(self.pathCO2)#+'predictions.pkl')
+        predictionsCO = pd.read_pickle(self.pathCO)#+'predictions3_CO.pkl') 
+        mask = (predictionsCO2['time']>=self.date_min)&(predictionsCO2['time']<=self.date_max+datetime.timedelta(days=1)) # selbe maske, da CO und CO2 genau gleich sortiert 
+        predictionsCO2_cut = predictionsCO2[mask].reset_index()
+        predictionsCO_cut = predictionsCO[mask].reset_index()
+        #print(predictionsCO['time'].max())
+        if self.date_min.date() < predictionsCO_cut['time'].min().date():
+            print('Given date min '+str(self.date_min.date())+' is not in predictions (Minimum : '+str(predictionsCO_cut['time'].min())+')')
+        if self.date_max.date() > predictionsCO_cut['time'].max().date():
+            print('Given date max '+str(self.date_max.date())+' is not in predictions (Maximum : '+str(predictionsCO_cut['time'].max())+')')
+        return predictionsCO2_cut, predictionsCO_cut
+    '''
+    
     def get_footprints_H_matrix(self,footprint_paths: list[str]): 
         footprints = []
         footprints_eco = []
@@ -355,7 +374,7 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
             date_str = str(date).replace("-", "")
             flux_files.append(self.flux_pathCO2.parent / (self.flux_pathCO2.name + f"{date_str}.nc"))
         flux = xr.open_mfdataset(flux_files, drop_variables="time_components").compute()
-        print(flux.bio_flux_opt)
+        #print(flux.bio_flux_opt)
 
         flux_bio_fossil = flux.bio_flux_opt + flux.ocn_flux_opt + flux.fossil_flux_imp
         flux_fire = flux.fire_flux_imp
@@ -563,10 +582,10 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         #flux_err = xr.concat([flux_errCO2, flux_errCO], dim = "final_regions")
 
 
-        print('flux_mean_grid')
-        print(flux_mean_grid)
-        print('flux_mean_eco')
-        print(flux_mean_eco)
+        #print('flux_mean_grid')
+        #print(flux_mean_grid)
+        #print('flux_mean_eco')
+        #print(flux_mean_eco)
 
 
         return flux_mean_grid, flux_mean_eco#, flux_err
@@ -621,8 +640,8 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         Cprior[3*(n_reg+1):4*(n_reg+1),3*(n_reg+1) :4*(n_reg+1)] = 1
 
         # correlate the fires (Co and Co2) with 0.7 (ant and bi onot correlated)
-        Cprior[:n_reg+1,2*(n_reg+1) :3*(n_reg+1)] = 0.7
-        Cprior[2*(n_reg+1) :3*(n_reg+1), :n_reg+1] = 0.7
+        Cprior[:n_reg+1,2*(n_reg+1) :3*(n_reg+1)] = 0.995#0.7
+        Cprior[2*(n_reg+1) :3*(n_reg+1), :n_reg+1] = 0.995# 0.7
         #print(Cprior[np.where(Cprior!=0)])
         # DImensions cannot be called the same, check with mutliplication that names of coordinates etc fit !!!!!!!!!!!!!!!!!
         '''

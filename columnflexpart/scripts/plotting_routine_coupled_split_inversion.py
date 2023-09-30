@@ -203,15 +203,16 @@ def plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion, predictions,
         spatial_flux = Inversion.map_on_grid(predictions * flux)*factor
 
         if idx == 0: 
-            plot_spatial_result(spatial_flux, savepath, savename, 'seismic',vmax = 250, vmin = -250, cbar_kwargs = {'label' : r'weekly flux [$\mu$gC m$^{-2}$ s$^{-1}$]', 'shrink':  0.835})
+            plot_spatial_result(spatial_flux, savepath, savename, 'seismic',vmax = 300, vmin = -300, cbar_kwargs = {'label' : r'weekly flux [$\mu$gC m$^{-2}$ s$^{-1}$]', 'shrink':  0.835})
         elif idx == 1:
             plot_spatial_result(spatial_flux, savepath, savename, 'seismic', vmax = 10, vmin = -10,cbar_kwargs = {'label' : r'weekly flux [$\mu$gC m$^{-2}$ s$^{-1}$]', 'shrink':  0.835})
         elif idx == 2:
-            plot_spatial_result(spatial_flux, savepath, savename, 'seismic',vmax = 10, vmin = -10, cbar_kwargs = {'label' : r'weekly flux [$\mu$gC m$^{-2}$ s$^{-1}$]', 'shrink':  0.835})
+            plot_spatial_result(spatial_flux, savepath, savename, 'seismic',vmax = 20, vmin = -20, cbar_kwargs = {'label' : r'weekly flux [$\mu$gC m$^{-2}$ s$^{-1}$]', 'shrink':  0.835})
         elif idx == 3:
             plot_spatial_result(spatial_flux, savepath, savename, 'seismic', vmax = 0.1, vmin = -0.1,cbar_kwargs = {'label' : r'weekly flux [$\mu$gC m$^{-2}$ s$^{-1}$]', 'shrink':  0.835})
-
-    #total_spatial_result.to_netcdf(path =savepath+'spatial_results_week_'+str(week_min)+'_'+str(week_max)+'.pkl')
+        print(name)
+        print(predictions*flux)
+        spatial_flux.to_netcdf(path =savepath+'spatial_results_'+name+'_week_'+str(Inversion.week)+'.nc')
 
 def plot_spatial_averaging_kernel(ak_spatial, savepath,alpha, molecule_name, weekly= False, week = 0 ): 
     plt.figure()
@@ -280,7 +281,7 @@ def plot_input_mask(savepath,datapath_and_name, selection= None):
     plt.figure(figsize=(14, 10))    
     plt.rcParams.update({'font.size':25})    
     ax = plt.axes(projection=ccrs.PlateCarree())   
-    ds['bioclass'].plot(x = 'Long', y = 'Lat',add_colorbar = True)
+    ds['bioclass'].plot(x = 'Long', y = 'Lat',cmap = 'nipy_spectral',add_colorbar = True)
     ax.set_xlim((110.0, 155.0))
     ax.set_ylim((-45.0, -10.0))
     ax.coastlines()
@@ -624,7 +625,6 @@ def plot_difference_of_posterior_concentrations_to_measurements(Inversion, savep
     df.insert(loc= 1, value = diffCO2.values, column = 'diffCO2')
     df.insert(loc= 1, column = 'CO2_meas', value = dsCO2['xco2_measurement'])
     df.insert(loc= 1, value = np.array(diffCO)[:], column = 'diffCO')
-    print(df)
 
     mask = (df['time']>=Inversion.date_min)&(df['time']<=Inversion.date_min+datetime.timedelta(days=7)) # selbe maske, da CO und CO2 genau gleich sortiert 
     df = df[mask].reset_index()
