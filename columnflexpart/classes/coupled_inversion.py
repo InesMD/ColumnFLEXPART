@@ -36,9 +36,18 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         time_unit: Timeunit = "week",
         boundary: Boundary = None,
         concentration_key: Concentrationkey = "background_inter",
-        data_outside_month: bool = False
+        data_outside_month: bool = False,
+        meas_err_CO: float = None,# ppb
+        meas_err_CO2: float = None, #ppm
+        prior_err_CO_fire: float = 1, 
+        prior_err_CO2_fire: float = 1,
        ): 
         
+
+        self.meas_err_CO = meas_err_CO
+        self.meas_err_CO2 = meas_err_CO2
+        self.prior_err_CO_fire = prior_err_CO_fire
+        self.prior_err_CO2_fire = prior_err_CO2_fire
         self.pathCO = result_pathCO
         self.pathCO2 = result_pathCO2
         self.n_eco: Optional[int] = None
@@ -226,8 +235,11 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
             coords = dict(measurement = measurement_id) 
         )
         ########### added to see influence of concentration errors ############
-        concentration_errsCO2 = list(np.ones(len(concentration_errsCO2))*2)# 2 ppm
-        concentration_errsCO = list(np.ones(len(concentration_errsCO2))*6)#3 ppb
+        if self.meas_err_CO != None: 
+            concentration_errsCO = list(np.ones(len(concentration_errsCO2))*self.meas_err_CO)# ppb
+        if self.meas_err_CO2 != None: 
+            concentration_errsCO2 = list(np.ones(len(concentration_errsCO2))*self.meas_err_CO2)# 2 ppm
+
         ####################################################################### 
 
         concentration_errs  = xr.DataArray(
@@ -640,8 +652,8 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         Cprior[3*(n_reg+1):4*(n_reg+1),3*(n_reg+1) :4*(n_reg+1)] = 1
 
         # correlate the fires (Co and Co2) with 0.7 (ant and bi onot correlated)
-        Cprior[:n_reg+1,2*(n_reg+1) :3*(n_reg+1)] = 0.995#0.7
-        Cprior[2*(n_reg+1) :3*(n_reg+1), :n_reg+1] = 0.995# 0.7
+        Cprior[:n_reg+1,2*(n_reg+1) :3*(n_reg+1)] = 0.7
+        Cprior[2*(n_reg+1) :3*(n_reg+1), :n_reg+1] = 0.7
         #print(Cprior[np.where(Cprior!=0)])
         # DImensions cannot be called the same, check with mutliplication that names of coordinates etc fit !!!!!!!!!!!!!!!!!
         '''
@@ -698,18 +710,11 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         bio_fossil_CO2 = np.ones_like(area_weighted_errorsCO2)*area_weighted_errorsCO2.values[0] # adapt according to errors of fire block!!!!!!!!!!!!!
         bio_fossil_CO2[0] = bio_fossil_CO2[0]/10000000 
         bio_fossil_block_CO2 = np.diag(bio_fossil_CO2)
-        #print(bio_fossil_block)
 
         fire_blockCO = np.diag(area_weighted_errorsCO.values) 
         fire_blockCO2 = np.diag(area_weighted_errorsCO2.values) 
         zero_block = np.zeros_like(fire_blockCO)
-        #print(fire_blockCO)
-        #print(fire_blockCO2)
-        #plt.figure()
-        #plt.imshow(fire_blockCO2, cmap = 'Greys')
-        #plt.savefig('/home/b/b382105/test/ColumnFLEXPART/columnflexpart/scripts/rho.png')
-        #plt.close()
-
+   
         off_diag_fire = np.sqrt(area_weighted_errorsCO* area_weighted_errorsCO2)
         off_diag_fire_block = np.diag(off_diag_fire)
 
@@ -727,36 +732,26 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
     def get_prior_flux_errors(self, non_equal_region_size, area_bioreg):
         # area bioreg: size of one inversion (CO or CO2, not both together)
         # prior errors
-        if non_equal_region_size == True: 
-            #print('per region')
+        if non_equal_region_size == True:
             errCO2, errCO = self.calc_errors_flat_area_weighted_scaled_to_mean_flux(area_bioreg)
             errCO2 = errCO2.stack(new=[self.time_coord, *self.spatial_valriables])
             errCO = errCO.stack(new=[self.time_coord, *self.spatial_valriables])
-            #print('maximum error value: '+str(err.max()))
         else: 
             #print('not per region') # FÜR GEGRIDDEDE AUCH NOCH FLATTEN?!
             errCO2, errCO = self.get_land_ocean_error(1/100000) # adapt CO2 and CO errors separately check 
-            #print(err)
-            #print('maximum error value: '+str(err.max()))
-        #print('Initlaizing done')
+
         return errCO2, errCO 
     
     def get_non_area_weighted_rho_matrix(self,  CO2fire_error: float, COfire_error: float):
         '''
         return rho matrix with the given values on the diagonal for CO and CO2 fire. 1 corresponds to a 100% error.
         '''
-        #sample_error = xr.DataArray(data=np.zeros((int(self.bioclass_mask.values.max()+1),len(self.flux_eco.week.values))),
-        #                             coords=dict({ 'bioclass': ('bioclass',np.arange(0,int(self.bioclass_mask.values.max())+1)),
-        #                             'week': ('week',self.flux_eco.week.values)})).stack(new=[self.time_coord, *self.spatial_valriables])
-        #len_diag_flattened = sample_error.values.shape[0]
-        #print(len_diag_flattened)
-
         len_diag_flattened = int(self.bioclass_mask.values.max()+1)
 
         fireCO_diag = np.ones(len_diag_flattened) * COfire_error
         fireCO_diag[0] = fireCO_diag[0]/10000000 
         fireCO = np.diag(fireCO_diag**2)
-        #print(fireCO)
+    
         fireCO2_diag = np.ones(len_diag_flattened) * CO2fire_error
         fireCO2_diag[0] = fireCO2_diag[0]/10000000 
         fireCO2 = np.diag(fireCO2_diag**2)
@@ -775,57 +770,19 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         total_right_block = np.concatenate((zero_block, zero_block, zero_block, bio), axis = 0)
 
         data_weekly = np.concatenate((total_left_block, total_middle_left_block, total_middle_ríght_block, total_right_block), axis = 1)
-        '''
-        if len(self.flux_eco.week.values) == 6: 
-            total_data = np.block([[data_weekly,data_weekly, data_weekly, data_weekly, data_weekly,data_weekly], 
-                     [data_weekly,data_weekly, data_weekly, data_weekly, data_weekly,data_weekly],
-                     [data_weekly,data_weekly, data_weekly, data_weekly, data_weekly,data_weekly],
-                    [data_weekly,data_weekly, data_weekly, data_weekly, data_weekly,data_weekly],
-                    [data_weekly,data_weekly, data_weekly, data_weekly, data_weekly,data_weekly],
-                     [data_weekly,data_weekly, data_weekly, data_weekly, data_weekly,data_weekly]])
-        elif len(self.flux_eco.week.values) == 5: 
-            total_data = np.block([[data_weekly,data_weekly, data_weekly, data_weekly, data_weekly],
-                         [data_weekly,data_weekly, data_weekly, data_weekly, data_weekly],
-                         [data_weekly,data_weekly, data_weekly, data_weekly, data_weekly],
-                         [data_weekly,data_weekly, data_weekly, data_weekly, data_weekly],
-                         [data_weekly,data_weekly, data_weekly, data_weekly, data_weekly]])
-        elif len(self.flux_eco.week.values) ==4 : 
-            total_data = np.block([[data_weekly,data_weekly, data_weekly, data_weekly],
-                         [data_weekly,data_weekly, data_weekly, data_weekly],
-                         [data_weekly,data_weekly, data_weekly, data_weekly],
-                        [data_weekly,data_weekly, data_weekly, data_weekly]])
-        else: 
-            raise ValueError('Cprior matrix cannot be constructed because number of weeks is not 4,5 or 6')
-        '''
-        #print(total_data[total_data!= 0])
-        #rho_prior = xr.DataArray(data = total_data, dims = ["final_regions", "final_regions2"],
-        #                       coords = dict(final_regions =(["final_regions"], self.flux_eco_flat.new.values), final_regions2 =(["final_regions2"], self.flux_eco_flat.new.values)))
+        
         rho_prior = xr.DataArray(data = data_weekly, dims = ["final_regions", "final_regions2"],
                                coords = dict(final_regions =(["final_regions"], self.footprints_flat.final_regions.values),
                                               final_regions2 =(["final_regions2"], self.footprints_flat.final_regions.values)))
         
-        #print(rho_prior)
-        #plt.imshow(rho_prior)
-        #plt.savefig('/home/b/b382105/test/ColumnFLEXPART/columnflexpart/scripts/rho_prior.png')
         self.rho_prior = rho_prior
         return rho_prior
 
     def get_prior_covariace_matrix(self, non_equal_region_size, area_bioreg): 
-        #errCO2, errCO = self.get_prior_flux_errors(non_equal_region_size, area_bioreg)
-        #rho = self.get_rho_prior_matrix(errCO2, errCO)
-        rho = self.get_non_area_weighted_rho_matrix(2,2)
-        #(rho.where(rho != 0, drop = True))
+
+        rho = self.get_non_area_weighted_rho_matrix(self.prior_err_CO2_fire,self.prior_err_CO_fire)
         Cprior = self.get_Cprior_matrix()
-        #print(Cprior.where(Cprior != 0, drop = True))
-       # print(self.flux_eco_flat.new.values)
-       # print('Cprior')
-       # print(Cprior)
-       # print('rho')
-       # print(rho)
         prior_cov = rho * Cprior
-        #plt.imshow(prior_cov)
-        #plt.savefig('/home/b/b382105/test/ColumnFLEXPART/columnflexpart/scripts/prior_cov.png')
-       # print(prior_cov)
         return prior_cov # hat Dimension flattened week, final_regions x flattened week, final regions, 
         #  die heißen final_regions und final_regions2, in FP etc heißt die Dimension 'new'
     
