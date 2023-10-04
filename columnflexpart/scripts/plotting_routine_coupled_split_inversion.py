@@ -321,14 +321,14 @@ def multiply_K_with_scaling_factors_for_concentrations(Inversion, flux, footprin
     return conc_tot
     
 
-def calc_total_conc_by_multiplication_with_K(Inversion):
+def calc_total_conc_by_multiplication_with_K(Inversion, predictions_flat):
     '''
     multiplication of posterior scaling factors with entire K matrix to obtain total CO and CO2 concentrations 
     '''
     K = Inversion.K.where((Inversion.K.week == Inversion.week), drop = True)
     
-    conc = K.dot(Inversion.predictions_flat.rename(dict(bioclass = 'final_regions')))
-    prior_conc = K.dot(xr.ones_like(Inversion.predictions_flat.rename(dict(bioclass = 'final_regions'))))
+    conc = K.dot(predictions_flat.rename(dict(bioclass = 'final_regions')))
+    prior_conc = K.dot(xr.ones_like(predictions_flat.rename(dict(bioclass = 'final_regions'))))
 
     predictions_CO2, predictions_CO = Inversion.select_relevant_times()
 
@@ -343,7 +343,7 @@ def calc_total_conc_by_multiplication_with_K(Inversion):
 
     return concCO2, concCO, priorCO2, priorCO, predictions_CO, predictions_CO2
 
-def calc_single_conc_by_multiplication_with_K(Inversion):
+def calc_single_conc_by_multiplication_with_K(Inversion, predictions_flat):
     '''
     multiplication of posterior scaling factors with splitted K matrix to obtain total CO and CO2 concentrations 
     '''
@@ -365,15 +365,15 @@ def calc_single_conc_by_multiplication_with_K(Inversion):
                     (K.measurement>= K.measurement.shape[0]/2),drop = True)
 
     # split scaling factors
-    pred_CO2fire =Inversion.predictions_flat.where(Inversion.predictions_flat.bioclass < Inversion.number_of_reg, 
+    pred_CO2fire =predictions_flat.where(predictions_flat.bioclass < Inversion.number_of_reg, 
                                                    drop = True).rename(dict(bioclass = 'final_regions'))
-    pred_CO2bio =Inversion.predictions_flat.where((Inversion.predictions_flat.bioclass <2*Inversion.number_of_reg)&
-                                                  (Inversion.predictions_flat.bioclass >= Inversion.number_of_reg), 
+    pred_CO2bio =predictions_flat.where((predictions_flat.bioclass <2*Inversion.number_of_reg)&
+                                                  (predictions_flat.bioclass >= Inversion.number_of_reg), 
                                                 drop = True).rename(dict(bioclass = 'final_regions'))
-    pred_COfire =Inversion.predictions_flat.where((Inversion.predictions_flat.bioclass < 3*Inversion.number_of_reg)&
-                                                  (Inversion.predictions_flat.bioclass >= 2*Inversion.number_of_reg), 
+    pred_COfire =predictions_flat.where((predictions_flat.bioclass < 3*Inversion.number_of_reg)&
+                                                  (predictions_flat.bioclass >= 2*Inversion.number_of_reg), 
                                                 drop = True).rename(dict(bioclass = 'final_regions'))
-    pred_CObio =Inversion.predictions_flat.where((Inversion.predictions_flat.bioclass >= Inversion.number_of_reg*3), 
+    pred_CObio =predictions_flat.where((predictions_flat.bioclass >= Inversion.number_of_reg*3), 
                                                 drop = True).rename(dict(bioclass = 'final_regions'))
 
     # multiplication
@@ -578,7 +578,7 @@ def plot_single_concentrations(Inversion, alpha, savepath):
 
     #conc_tot_fire, conc_tot_bio, prior_fire, prior_bio, ds = calc_concentrations(Inversion, pred_fire, pred_bio, flux_fire, flux_bio,molecule_name,alpha, savepath)
  
-    conc, prior_conc, dsCO, dsCO2 = calc_single_conc_by_multiplication_with_K(Inversion)
+    conc, prior_conc, dsCO, dsCO2 = calc_single_conc_by_multiplication_with_K(Inversion, Inversion.predictions_flat)
 
     plot_fire_bio_concentrations(conc[0],conc[1], prior_conc[0], prior_conc[1], dsCO2, savepath, alpha, 'CO2')
     plot_fire_bio_concentrations(conc[2],conc[3], prior_conc[2], prior_conc[3], dsCO, savepath, alpha, 'CO')
@@ -601,7 +601,7 @@ def plot_single_total_concentrations(Inversion, alpha, savepath):
     prior_tot = prior_fire - ds['background_inter'] + prior_bio
     #print(prior_tot)
    '''
-    conc_totCO2, conc_totCO, priorCO2, priorCO, dsCO, dsCO2 = calc_total_conc_by_multiplication_with_K(Inversion)
+    conc_totCO2, conc_totCO, priorCO2, priorCO, dsCO, dsCO2 = calc_total_conc_by_multiplication_with_K(Inversion, Inversion.predictions_flat)
     
 
 
@@ -615,7 +615,7 @@ def plot_difference_of_posterior_concentrations_to_measurements(Inversion, savep
 
     plt.rcParams.update({'font.size' : 19 })
 
-    conc_totCO2, conc_totCO, priorCO2, priorCO, dsCO, dsCO2 = calc_total_conc_by_multiplication_with_K(Inversion)
+    conc_totCO2, conc_totCO, priorCO2, priorCO, dsCO, dsCO2 = calc_total_conc_by_multiplication_with_K(Inversion, Inversion.predictions_flat)
 
     diffCO2 = conc_totCO2.values - dsCO2['xco2_measurement']
     diffCO = conc_totCO.values - dsCO['xco2_measurement']
@@ -670,6 +670,89 @@ def plot_difference_of_posterior_concentrations_to_measurements(Inversion, savep
     plt.axhline(y=0, color='k', linestyle='-')
 
     fig.savefig(savepath+"{:e}".format(alpha)+"_diff_measurement_total_conc.png", dpi = 300, bbox_inches = 'tight')
+
+    return 
+
+
+def plot_concentrations_measurements_and_errors(Inversion, savepath, alpha):
+
+    plt.rcParams.update({'font.size' : 19 })
+
+    #conc_totCO2, conc_totCO, priorCO2, priorCO, dsCO, dsCO2 = calc_total_conc_by_multiplication_with_K(Inversion, Inversion.)
+
+    conc_err, prior_conc, dsCO, dsCO2 = calc_single_conc_by_multiplication_with_K(Inversion, Inversion.prediction_errs_flat.rename({'new': 'bioclass'}))
+    conc, prior_conc, dsCO, dsCO2 = calc_single_conc_by_multiplication_with_K(Inversion, Inversion.predictions_flat)
+    
+    CO2fire_std = conc_err[0]-dsCO2['background_inter']
+    CO2bio_std = conc_err[1]-dsCO2['background_inter']
+    COfire_std = conc_err[2]-dsCO['background_inter']
+    CObio_std = conc_err[3]-dsCO['background_inter']
+
+    df = pd.DataFrame(data = dsCO2['time'], columns = ['time'])
+
+    df.insert(loc= 1, value = conc[0].values, column = 'CO2_fire')
+    df.insert(loc= 1, column = 'CO2_meas', value = dsCO2['xco2_measurement'])
+    df.insert(loc= 1, value = conc[1].values, column = 'CO2_bio')
+    df.insert(loc= 1, value = conc[2].values, column = 'CO_fire')
+    df.insert(loc= 1, value = conc[3].values, column = 'CO_bio')
+    df.insert(loc= 1, value = CO2bio_std.values, column = 'CO2bio_std')
+    df.insert(loc= 1, value = CO2fire_std.values, column = 'CO2fire_std')
+    df.insert(loc= 1, value = COfire_std.values, column = 'COfire_std')
+    df.insert(loc= 1, value = CObio_std.values, column = 'CObio_std')
+
+    mask = (df['time']>=Inversion.date_min)&(df['time']<=Inversion.date_min+datetime.timedelta(days=7)) # selbe maske, da CO und CO2 genau gleich sortiert 
+    df = df[mask].reset_index()
+    df = df.sort_values(['time'], ascending = True).reset_index()
+    df.insert(loc = 1, column = 'date', value = df['time'][:].dt.strftime('%Y-%m-%d'))
+
+    # plotting 
+    fig, ax1 = plt.subplots(figsize = (17,7))
+    Xaxis = np.arange(0,2*len(df['time'][:]),2)
+    ax1.set_ylabel(r'CO$_2$ concentration [ppm]')
+    ax1.set_xlabel('date')
+    #ax1.tick_params(axis = 'y')
+    max_value = max(abs(df['CO2_fire'].max()), abs(df['CO2_fire'].min()))
+    ax1.set_ylim((408, max_value+1))
+    lns1 = ax1.plot(Xaxis-0.3, df['CO2_fire'],color = 'gray',label = r'CO$_2$ fire')
+    ax1.fill_between(Xaxis-0.3, df['CO2_fire']-df['CO2fire_std'], df['CO2_fire']+df['CO2fire_std'], color = 'lightgrey')
+    lns1 = ax1.plot(Xaxis-0.3, df['CO2_bio'],color = 'gray',label = r'CO$_2$ bio')
+    ax1.fill_between(Xaxis-0.3, df['CO2_bio']-df['CO2bio_std'], df['CO2_bio']+df['CO2bio_std'])
+
+    ax2 = ax1.twinx()
+    ax2.set_ylabel(r'CO concentration [ppb]')
+    max_value = max(abs(df['CO_fire'].max()), abs(df['CO_fire'].min()))
+    ax2.set_ylim((50, max_value+5))
+    lns1 = ax2.plot(Xaxis-0.3, df['CO_fire'],color = 'gray',label = r'CO$_2$ fire')
+    ax2.fill_between(Xaxis-0.3, df['CO_fire']-df['COfire_std'], df['CO_fire']+df['COfire_std'], color = 'lightgrey')
+    lns1 = ax2.plot(Xaxis-0.3, df['CO_bio'],color = 'gray',label = r'CO$_2$ bio')
+    ax2.fill_between(Xaxis-0.3, df['CO_bio']-df['CObio_std'], df['CO_bio']+df['CObio_std'])
+    #max_value = max(abs(df['diffCO'].max()), abs(df['diffCO'].min()))
+    #ax2.set_ylim((-max_value*1.1, max_value*1.1))
+    #lns2 = ax2.bar(Xaxis+0.3, df['diffCO'], width = 0.6, color = 'cornflowerblue', alpha = 0.6, label = r'$\Delta$CO')
+    #ax2.tick_params(axis = 'y')# not great but ok 
+    #ax2.set_xticks(Xaxis)
+
+    #lines, labels = ax1.get_legend_handles_labels()
+    #lines2, labels2 = ax2.get_legend_handles_labels()
+    #ax2.legend(lines + lines2, labels + labels2, loc='upper left')
+    # ticks
+    ticklabels = ['']*len(df['time'][:])
+    # Every 4th ticklable shows the month and day
+    ticklabels[0] = df['date'][0]
+    reference = df['date'][0]
+    for i in np.arange(1,len(df['time'][:])):
+        if df['date'][i]>reference:
+            ticklabels[i] = df['date'][i]
+            reference = df['date'][i]
+
+    ax2.xaxis.set_major_formatter(mpl.ticker.FixedFormatter(ticklabels))
+    plt.gcf().autofmt_xdate(rotation = 45)
+    #ax2.set_xticks(Xaxis, ticklabels)
+    #ax2.tick_params(axis = 'x', labelrotation = 30)
+
+    plt.axhline(y=0, color='k', linestyle='-')
+
+    fig.savefig(savepath+"{:e}".format(alpha)+"_concentrations_with_errors_measurement.png", dpi = 300, bbox_inches = 'tight')
 
     return 
 
@@ -765,7 +848,10 @@ def compute_l_curve(Inversion, alpha_list=[0.1, 1.0, 10.0], cond=None):
 
 
 
-
+def calculate_ratio_error(std_CO2, std_CO, flux_CO2, flux_CO):
+    
+    err  = np.sqrt((std_CO2/flux_CO)**2+(flux_CO2/((flux_CO)**2)*std_CO)**2)
+    return err
 
 
 
@@ -807,6 +893,7 @@ def plot_l_curve(Inversion, molecule_name, savepath, alpha, err = None):
     plt.legend()
     #print('saving')
     plt.savefig(savepath+str("{:e}".format(alpha))+'_'+molecule_name+'_err_per_reg_l_curve_xerr_extended2_middle.png')
+    plt.close()
 
 
 

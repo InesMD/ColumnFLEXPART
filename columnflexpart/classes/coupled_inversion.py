@@ -41,6 +41,7 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         meas_err_CO2: float = None, #ppm
         prior_err_CO_fire: float = 1, 
         prior_err_CO2_fire: float = 1,
+        correlation: float= 0.7,
        ): 
         
 
@@ -48,6 +49,7 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         self.meas_err_CO2 = meas_err_CO2
         self.prior_err_CO_fire = prior_err_CO_fire
         self.prior_err_CO2_fire = prior_err_CO2_fire
+        self.correlation = correlation 
         self.pathCO = result_pathCO
         self.pathCO2 = result_pathCO2
         self.n_eco: Optional[int] = None
@@ -652,8 +654,8 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         Cprior[3*(n_reg+1):4*(n_reg+1),3*(n_reg+1) :4*(n_reg+1)] = 1
 
         # correlate the fires (Co and Co2) with 0.7 (ant and bi onot correlated)
-        Cprior[:n_reg+1,2*(n_reg+1) :3*(n_reg+1)] = 0.7
-        Cprior[2*(n_reg+1) :3*(n_reg+1), :n_reg+1] = 0.7
+        Cprior[:n_reg+1,2*(n_reg+1) :3*(n_reg+1)] = self.correlation
+        Cprior[2*(n_reg+1) :3*(n_reg+1), :n_reg+1] = self.correlation
         #print(Cprior[np.where(Cprior!=0)])
         # DImensions cannot be called the same, check with mutliplication that names of coordinates etc fit !!!!!!!!!!!!!!!!!
         '''

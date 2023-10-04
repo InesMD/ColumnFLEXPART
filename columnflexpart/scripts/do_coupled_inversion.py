@@ -9,8 +9,8 @@ import pandas as pd
 import cartopy.crs as ccrs
 from columnflexpart.scripts.plotting_routine_coupled_split_inversion import plot_spatial_flux_results_or_diff_to_prior, plot_averaging_kernel,plot_input_mask,plot_weekly_concentrations, plot_single_concentrations
 from columnflexpart.scripts.plotting_routine_coupled_split_inversion import split_eco_flux, split_predictions,  plot_prior_spatially, plot_single_total_concentrations, calculate_and_plot_averaging_kernel, plot_l_curve, split_gridded_flux
-from columnflexpart.scripts.plotting_routine_coupled_split_inversion import plot_emission_ratio, split_output, plot_spatial_result,plot_difference_of_posterior_concentrations_to_measurements
-
+from columnflexpart.scripts.plotting_routine_coupled_split_inversion import plot_emission_ratio, split_output, plot_spatial_result,plot_difference_of_posterior_concentrations_to_measurements, calculate_ratio_error
+from columnflexpart.scripts.plotting_routine_coupled_split_inversion import calc_single_conc_by_multiplication_with_K, plot_concentrations_measurements_and_errors
 def do_everything(savepath, Inversion, molecule_name, mask_datapath_and_name, week_min, week_max, week_num, alpha_list):
     class_num = plot_input_mask(savepath,mask_datapath_and_name, selection = [12])
 
@@ -57,6 +57,9 @@ def do_everything(savepath, Inversion, molecule_name, mask_datapath_and_name, we
             print('Plot posterior std deviation')
             plot_spatial_result(Inversion.map_on_grid(post_std_list[idx]), savepath, str("{:e}".format(l))+'_post_std_'+name_list[idx]+'.png', 'pink_r', vmax =None, vmin =0, 
                                 cbar_kwargs = {'shrink':  0.835, 'label' : r'posterior standard deviation'}, norm = None)
+            # flux: 
+            plot_spatial_result(Inversion.map_on_grid(post_std_list[idx]*flux_list[idx]*12*10**6), savepath, str("{:e}".format(l))+'_post_std_flux_'+name_list[idx]+'.png', 'pink_r', vmax =None, vmin =0, 
+                                cbar_kwargs = {'shrink':  0.835, 'label' : r'posterior standard deviation [$\mu$gC m$^{-2}$ s$^{-1}$]'}, norm = None)
 
             #(prior variance(lambda considered) - posterior variance)/prior variance = (prior variance/lambda - post variance)/prior variance
             print('Plot error variance reduction/Uncertainty reduction')
@@ -65,57 +68,72 @@ def do_everything(savepath, Inversion, molecule_name, mask_datapath_and_name, we
                                 cbar_kwargs = {'shrink':  0.835, 'label' : r'uncertainty reduction'}, norm = None)
 
         
-        plot_emission_ratio(savepath, Inversion, predictions_list[0], predictions_list[2], l, fluxCO2_fire, fluxCO_fire)
+        ratio_err = calculate_ratio_error(post_std_list[0], post_std_list[2], predictions_list[0], predictions_list[2])
+        print(ratio_err)
+        plot_spatial_result(Inversion.map_on_grid(ratio_err), savepath,
+                                       str("{:e}".format(l))+'_ratio_err.png', 'pink_r', vmax =None, vmin =0, 
+                                cbar_kwargs = {'shrink':  0.835, 'label' : r'$\Delta$CO$_2$/$\Delta$CO standard deviation'}, norm = None)
+        plot_spatial_result(Inversion.map_on_grid(ratio_err), savepath,
+                                       str("{:e}".format(l))+'_ratio_err_cbar_cut.png', 'pink_r', vmax =5, vmin =0, 
+                                cbar_kwargs = {'shrink':  0.835, 'label' : r'$\Delta$CO$_2$/$\Delta$CO standard deviation'}, norm = None)
+        plot_spatial_result(Inversion.map_on_grid(ratio_err*flux_list[0]/flux_list[2]*44/28), savepath,
+                                       str("{:e}".format(l))+'_ratio_err_flux_cbar_cut.png', 'pink_r', vmax =None, vmin =0, 
+                                cbar_kwargs = {'shrink':  0.835, 'label' : r'$\Delta$CO$_2$/$\Delta$CO standard deviation [gCO$_2$/gCO]'}, norm = None)
+        
+        plot_concentrations_measurements_and_errors(Inversion, savepath, l)
+        #plot_emission_ratio(savepath, Inversion, predictions_list[0], predictions_list[2], l, fluxCO2_fire, fluxCO_fire)
 
-        print('Plotting concentrations')
-        total_CO2, total_CO = plot_single_concentrations(Inversion, l, savepath)
-        CO2, CO = plot_single_total_concentrations(Inversion,l, savepath)
-        plot_difference_of_posterior_concentrations_to_measurements(Inversion, savepath,l)
+        #print('Plotting concentrations')
+        #total_CO2, total_CO = plot_single_concentrations(Inversion, l, savepath)
+        #CO2, CO = plot_single_total_concentrations(Inversion,l, savepath)
+        #plot_difference_of_posterior_concentrations_to_measurements(Inversion, savepath,l)
 
-        calculate_and_plot_averaging_kernel(Inversion,savepath,l)
-        plot_l_curve(Inversion, molecule_name, savepath, l, err = None)
+        #calculate_and_plot_averaging_kernel(Inversion,savepath,l)
+        #plot_l_curve(Inversion, molecule_name, savepath, l, err = None)
         
 
 ######################### adapt stuff from here on ####################################
-alpha_list = [1e-1]
-for prior_err_CO in [1]:
-    for prior_err_CO2 in [1]: # adapt savepaths for different prior errors
-        for meas_err_CO in [3]:
-            for meas_err_CO2 in [1.5,2.5,3.5]:
-                savepath = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/Images_coupled_Inversion/everything_splitted_first_correlation_setup_weekly_inversion/CO_like_CO2_prior/Working_Setup/Meas_err_for_CO2_100_CO_100/CO2_'+str(meas_err_CO2)+'_CO_'+str(meas_err_CO)+'/'
-                if not os.path.isdir(savepath): os.mkdir(savepath) 
-                else: print('WARNING: savepath already exists')
-                mask = "/home/b/b382105/ColumnFLEXPART/resources/Ecosystems_AK_based_split_with_21_and_20_larger_and_4_split.nc"#OekomaskAU_Flexpart_version8_all1x1"#Ecosystems_AK_based_split_with_21_and_20_larger.nc"#OekomaskAU_Flexpart_version8_all1x1"#Ecosystems_AK_based_split_with_21_and_20_larger.nc"
-                non_equal_region_size = True
+alpha_list = [3.2e-3]
+for prior_err_CO in [2]:
+    for prior_err_CO2 in [2]: # adapt savepaths for different prior errors
+        for meas_err_CO in [6]:
+            for meas_err_CO2 in [2]:
+                for correlation in [0.7]:
+                    savepath = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/Images_coupled_Inversion/everything_splitted_first_correlation_setup_weekly_inversion/CO_like_CO2_prior/Working_Setup/CO2_'+str(prior_err_CO2*100)+'_CO_'+str(prior_err_CO*100)+'/CO2_'+str(meas_err_CO2)+'_CO_'+str(meas_err_CO)+'/Corr_'+str(correlation)+'/'
+                    if not os.path.isdir(savepath): os.makedirs(savepath) 
+                    else: print('WARNING: savepath already exists')
+                    mask = "/home/b/b382105/ColumnFLEXPART/resources/Ecosystems_AK_based_split_with_21_and_20_larger_and_4_split.nc"#OekomaskAU_Flexpart_version8_all1x1"#Ecosystems_AK_based_split_with_21_and_20_larger.nc"#OekomaskAU_Flexpart_version8_all1x1"#Ecosystems_AK_based_split_with_21_and_20_larger.nc"
+                    non_equal_region_size = True
 
-                #area bioreg for reion 4 split 21 and 20 larger: 
-                area_bioreg = [8.95512935e+13, 4.27021383e+11, 4.01383356e+12, 1.45736998e+12,
-                2.15745316e+11, 9.81395187e+09, 3.95111921e+10, 3.18183296e+10,
-                5.52121748e+10, 5.55915961e+10, 5.41460509e+10, 4.29887311e+10,
-                3.13764949e+10, 1.05335427e+10, 9.31980461e+10, 5.11758810e+10,
-                4.00158388e+10, 2.99495636e+10, 3.91250878e+10, 4.90667320e+10,
-                1.54614599e+11, 9.65077342e+10, 6.07622615e+10, 6.98377101e+10,
-                1.77802351e+11, 1.95969571e+11, 2.26322082e+11]
+                    #area bioreg for reion 4 split 21 and 20 larger: 
+                    area_bioreg = [8.95512935e+13, 4.27021383e+11, 4.01383356e+12, 1.45736998e+12,
+                    2.15745316e+11, 9.81395187e+09, 3.95111921e+10, 3.18183296e+10,
+                    5.52121748e+10, 5.55915961e+10, 5.41460509e+10, 4.29887311e+10,
+                    3.13764949e+10, 1.05335427e+10, 9.31980461e+10, 5.11758810e+10,
+                    4.00158388e+10, 2.99495636e+10, 3.91250878e+10, 4.90667320e+10,
+                    1.54614599e+11, 9.65077342e+10, 6.07622615e+10, 6.98377101e+10,
+                    1.77802351e+11, 1.95969571e+11, 2.26322082e+11]
 
-                Inversion = CoupledInversion(
-                    result_pathCO = "/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/predictions3_CO.pkl" ,
-                    result_pathCO2 = "/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/predictions.pkl" ,
-                    flux_pathCO = "/work/bb1170/RUN/b382105/Data/CAMS/Fluxes/Regridded_1x1/", 
-                    flux_pathCO2 = "/work/bb1170/RUN/b382105/Data/CarbonTracker2022/Flux/CT2022.flux1x1.",
-                    bioclass_path = mask,
-                    month = '2019-12',
-                    date_min = datetime.datetime(year = 2019, month = 12, day = 23),
-                    area_bioreg = area_bioreg,
-                    week = 52,
-                    non_equal_region_size=non_equal_region_size,
-                    date_max = datetime.datetime(year= 2020, month = 1, day = 7),
-                    boundary=[110.0, 155.0, -45.0, -10.0], 
-                    meas_err_CO = meas_err_CO,
-                    meas_err_CO2 = meas_err_CO2,
-                    prior_err_CO_fire = prior_err_CO, 
-                    prior_err_CO2_fire = prior_err_CO2,
-                    ) 
-                print('Initialization done')
+                    Inversion = CoupledInversion(
+                        result_pathCO = "/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/predictions3_CO.pkl" ,
+                        result_pathCO2 = "/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/predictions.pkl" ,
+                        flux_pathCO = "/work/bb1170/RUN/b382105/Data/CAMS/Fluxes/Regridded_1x1/", 
+                        flux_pathCO2 = "/work/bb1170/RUN/b382105/Data/CarbonTracker2022/Flux/CT2022.flux1x1.",
+                        bioclass_path = mask,
+                        month = '2019-12',
+                        date_min = datetime.datetime(year = 2019, month = 12, day = 23),
+                        area_bioreg = area_bioreg,
+                        week = 52,
+                        non_equal_region_size=non_equal_region_size,
+                        date_max = datetime.datetime(year= 2020, month = 1, day = 7),
+                        boundary=[110.0, 155.0, -45.0, -10.0], 
+                        meas_err_CO = meas_err_CO,
+                        meas_err_CO2 = meas_err_CO2,
+                        prior_err_CO_fire = prior_err_CO, 
+                        prior_err_CO2_fire = prior_err_CO2,
+                        correlation = correlation, 
+                        ) 
+                    print('Initialization done')
 
-                do_everything(savepath, Inversion,'CO',mask, 52, 52, 6, alpha_list)
- 
+                    do_everything(savepath, Inversion,'CO',mask, 52, 52, 6, alpha_list)
+    
