@@ -673,8 +673,130 @@ def plot_difference_of_posterior_concentrations_to_measurements(Inversion, savep
 
     return 
 
+def plot_single_conc_with_errors(df, savepath, alpha): 
+    # plotting 
+    fig, ax = plt.subplots(2,1,figsize=(18,8))
+    Xaxis = np.arange(0,2*len(df['time'][:]),2)
+    ax[0].set_ylabel(r'CO$_2$ [ppm]')
+    ax[0].set_xlabel('date')
+    ax[0].set_xticks(Xaxis, ['']*len(df['time'][:]))
+    #ax1.tick_params(axis = 'y')
+    max_value = max(abs(df['CO2_fire'].max()), abs(df['CO2_fire'].min()))
+    ax[0].set_ylim((408, max_value+2))
+    lns1 = ax[0].plot(Xaxis, df['CO2_fire'],color = 'firebrick',  label = r'fire posterior')
+    ax[0].fill_between(Xaxis, df['CO2_fire']-df['CO2fire_std'], df['CO2_fire']+df['CO2fire_std'], color = 'firebrick', alpha = 0.2)
 
-def plot_concentrations_measurements_and_errors(Inversion, savepath, alpha):
+    #total_CO2 = df['CO2_fire']+df['CO2_bio']-df['CO2_background']
+    #lns1 = ax[0].plot(Xaxis,total_CO2,color = 'gray',  label = r'total posterior')
+    #ax[0].fill_between(Xaxis, total_CO2-(df['CO2fire_std']+df['CO2bio_std']), total_CO2+(df['CO2fire_std']+df['CO2bio_std']), color = 'lightgrey', alpha = 0.5)
+
+    lns1 = ax[0].plot(Xaxis, df['CO2_bio'],color = 'green',label = r'bio posterior')
+    ax[0].fill_between(Xaxis, df['CO2_bio']-df['CO2bio_std'], df['CO2_bio']+df['CO2bio_std'], color = 'darkseagreen')
+    print(df['CO2bio_std'])
+
+    ax[0].plot(Xaxis-0.3, df['CO2_meas'],color = 'black',label = r'measurements')
+
+    ax2 = ax[1]#.twinx()
+    ax2.set_ylabel(r'CO [ppb]')
+    max_value = max(abs(df['CO_fire'].max()), abs(df['CO_fire'].min()))
+    ax2.set_ylim((50, max_value+50))
+    lns1 = ax2.plot(Xaxis, df['CO_fire'],color = 'firebrick',label = r'fire posterior')
+    ax2.fill_between(Xaxis, df['CO_fire']-df['COfire_std'], df['CO_fire']+df['COfire_std'], color = 'firebrick', alpha = 0.2)
+
+    #total_CO = df['CO_fire']+df['CO_bio']-df['CO_background']
+    #lns1 = ax2.plot(Xaxis,total_CO,color = 'gray',  label = r'total posterior')
+    #ax2.fill_between(Xaxis, total_CO-(df['COfire_std']+df['CObio_std']), total_CO+(df['COfire_std']+df['CObio_std']), color = 'lightgrey', alpha = 0.5)
+
+    lns1 = plt.plot(Xaxis, df['CO_bio'],color = 'green',label = r'bio posterior')
+    ax2.fill_between(Xaxis, df['CO_bio']-df['CObio_std'], df['CO_bio']+df['CObio_std'], color = 'darkseagreen')
+
+    ax2.plot(Xaxis-0.3, df['CO_meas'],color = 'black',label = r'measurements')
+
+    ax[1].legend(loc = 'upper left')
+    
+    # ticks
+    ticklabels = ['']*len(df['time'][:])
+    # Every 4th ticklable shows the month and day
+    ticklabels[0] = df['date'][0]
+    reference = df['date'][0]
+    for i in np.arange(1,len(df['time'][:])):
+        if df['date'][i]>reference:
+            ticklabels[i] = df['date'][i]
+            reference = df['date'][i]
+    ax[1].set_xticks(Xaxis, ticklabels)
+    ax[1].xaxis.set_major_formatter(mpl.ticker.FixedFormatter(ticklabels))
+    plt.gcf().autofmt_xdate(rotation = 45)
+
+    plt.axhline(y=0, color='k', linestyle='-')
+
+    fig.savefig(savepath+"{:e}".format(alpha)+"_single_concentrations_with_errors_measurement.png", dpi = 300, bbox_inches = 'tight')
+
+
+
+def plot_total_conc_with_errors(df, savepath, alpha): 
+    # plotting 
+    fig, ax = plt.subplots(2,1,figsize=(18,10))
+    Xaxis = np.arange(0,2*len(df['time'][:]),2)
+    ax[0].set_ylabel(r'CO$_2$ [ppm]')
+    ax[0].set_xlabel('date')
+    ax[0].set_xticks(Xaxis, ['']*len(df['time'][:]))
+    #ax1.tick_params(axis = 'y')
+    max_value = max(abs(df['CO2_fire'].max()), abs(df['CO2_fire'].min()))
+    ax[0].set_ylim((406, max_value+2))
+ 
+    #total CO2
+    total_CO2 = df['CO2_fire']+df['CO2_bio']-df['CO2_background']
+    lns1 = ax[0].plot(Xaxis,total_CO2,color = 'red',  label = r'total posterior')
+    ax[0].fill_between(Xaxis, total_CO2-(df['CO2fire_std']+df['CO2bio_std']), total_CO2+(df['CO2fire_std']+df['CO2bio_std']), color = 'red', alpha = 0.5)
+    #prior CO2
+    print('diff')
+    print(df['CO2_prior_std'])
+    print(df['CO2_prior']-df['CO2_prior_std'])
+    lns1 = ax[0].plot(Xaxis,df['CO2_prior'],color = 'salmon',  label = r'total prior')
+    ax[0].fill_between(Xaxis, df['CO2_prior']-(df['CO2_prior_std']), df['CO2_prior']+(df['CO2_prior_std']), color = 'salmon', alpha = 0.3)
+
+    ax[0].plot(Xaxis-0.3, df['CO2_meas'],color = 'dimgrey',label = r'measurements')
+
+    ## CO plot
+    ax2 = ax[1]#.twinx()
+    ax2.set_ylabel(r'CO [ppb]')
+    max_value = max(abs(df['CO_fire'].max()), abs(df['CO_fire'].min()))
+    ax2.set_ylim((0, max_value+100))
+    # total CO
+    total_CO = df['CO_fire']+df['CO_bio']-df['CO_background']
+    lns1 = ax2.plot(Xaxis,total_CO,color = 'red',  label = r'total posterior')
+    ax2.fill_between(Xaxis, total_CO-(df['COfire_std']+df['CObio_std']), total_CO+(df['COfire_std']+df['CObio_std']), color = 'red', alpha = 0.5)
+    # prior CO 
+    #total_prior_CO = df['CO_fire_prior']+df['CO_bio_prior']-df['CO_background']
+    lns1 = ax2.plot(Xaxis,df['CO_prior'],color = 'salmon',  label = r'total prior')
+    ax2.fill_between(Xaxis, df['CO_prior']-(df['CO_prior_std']), df['CO_prior']+(df['CO_prior_std']), color = 'salmon', alpha = 0.3)
+
+
+    ax2.plot(Xaxis-0.3, df['CO_meas'],color = 'dimgrey',label = r'measurements')
+
+    ax[1].legend(loc = 'upper left')
+    
+    # ticks
+    ticklabels = ['']*len(df['time'][:])
+    # Every 4th ticklable shows the month and day
+    ticklabels[0] = df['date'][0]
+    reference = df['date'][0]
+    for i in np.arange(1,len(df['time'][:])):
+        if df['date'][i]>reference:
+            ticklabels[i] = df['date'][i]
+            reference = df['date'][i]
+    ax[1].set_xticks(Xaxis, ticklabels)
+    ax[1].xaxis.set_major_formatter(mpl.ticker.FixedFormatter(ticklabels))
+    plt.gcf().autofmt_xdate(rotation = 45)
+
+    plt.axhline(y=0, color='k', linestyle='-')
+
+    fig.savefig(savepath+"{:e}".format(alpha)+"_total_concentrations_with_errors_measurement.png", dpi = 300, bbox_inches = 'tight')
+
+
+
+
+def plot_single_concentrations_measurements_and_errors(Inversion, savepath, alpha, prior_std):
 
     plt.rcParams.update({'font.size' : 19 })
 
@@ -691,68 +813,45 @@ def plot_concentrations_measurements_and_errors(Inversion, savepath, alpha):
     df = pd.DataFrame(data = dsCO2['time'], columns = ['time'])
 
     df.insert(loc= 1, value = conc[0].values, column = 'CO2_fire')
-    df.insert(loc= 1, column = 'CO2_meas', value = dsCO2['xco2_measurement'])
     df.insert(loc= 1, value = conc[1].values, column = 'CO2_bio')
     df.insert(loc= 1, value = conc[2].values, column = 'CO_fire')
     df.insert(loc= 1, value = conc[3].values, column = 'CO_bio')
+    
+    df.insert(loc= 1, column = 'CO2_meas', value = dsCO2['xco2_measurement'])
+    df.insert(loc= 1, column = 'CO_meas', value = dsCO['xco2_measurement'])
+    df.insert(loc=1, column = 'CO2_background', value = dsCO2['background_inter'])
+    df.insert(loc=1, column='CO_background', value = dsCO['background_inter'])
+
     df.insert(loc= 1, value = CO2bio_std.values, column = 'CO2bio_std')
     df.insert(loc= 1, value = CO2fire_std.values, column = 'CO2fire_std')
     df.insert(loc= 1, value = COfire_std.values, column = 'COfire_std')
     df.insert(loc= 1, value = CObio_std.values, column = 'CObio_std')
+
+    concCO2, concCO, priorCO2, priorCO, predictions_CO, predictions_CO2 = calc_total_conc_by_multiplication_with_K(Inversion,prior_std.rename({'new':'bioclass'}))
+    # Ne prior std an K multiplizieren 
+    df.insert(loc= 1, value = concCO2.values-predictions_CO2['background_inter'][:], column = 'CO2_prior_std')
+    df.insert(loc= 1, value = concCO.values-predictions_CO['background_inter'][:], column = 'CO_prior_std')
+    print(priorCO2.values)
+    df.insert(loc= 1, value = priorCO2.values, column = 'CO2_prior')
+    df.insert(loc= 1, value = priorCO.values, column = 'CO_prior')
+
+    #df.insert(loc= 1, value = prior_conc[0].values, column = 'CO2_fire_prior')
+    #df.insert(loc= 1, value = prior_conc[1].values, column = 'CO2_bio_prior')
+    #df.insert(loc= 1, value = prior_conc[2].values, column = 'CO_fire_prior')
+    #df.insert(loc= 1, value = prior_conc[3].values, column = 'CO_bio_prior')
+    
+    #df.insert(loc= 1, value = prior_std_list[0].values*flux_list[0].values, column = 'CO2_fire_prior_std')
+    #df.insert(loc= 1, value = prior_std_list[1].values*flux_list[1].values, column = 'CO2_bio_prior_std')
+    #df.insert(loc= 1, value = prior_std_list[2].values*flux_list[2].values, column = 'CO_fire_prior_std')
+    #df.insert(loc= 1, value = prior_std_list[3].values*flux_list[3].values, column = 'CO_bio_prior_std')
 
     mask = (df['time']>=Inversion.date_min)&(df['time']<=Inversion.date_min+datetime.timedelta(days=7)) # selbe maske, da CO und CO2 genau gleich sortiert 
     df = df[mask].reset_index()
     df = df.sort_values(['time'], ascending = True).reset_index()
     df.insert(loc = 1, column = 'date', value = df['time'][:].dt.strftime('%Y-%m-%d'))
 
-    # plotting 
-    fig, ax1 = plt.subplots(figsize = (17,7))
-    Xaxis = np.arange(0,2*len(df['time'][:]),2)
-    ax1.set_ylabel(r'CO$_2$ concentration [ppm]')
-    ax1.set_xlabel('date')
-    #ax1.tick_params(axis = 'y')
-    max_value = max(abs(df['CO2_fire'].max()), abs(df['CO2_fire'].min()))
-    ax1.set_ylim((408, max_value+1))
-    lns1 = ax1.plot(Xaxis-0.3, df['CO2_fire'],color = 'gray',label = r'CO$_2$ fire')
-    ax1.fill_between(Xaxis-0.3, df['CO2_fire']-df['CO2fire_std'], df['CO2_fire']+df['CO2fire_std'], color = 'lightgrey')
-    lns1 = ax1.plot(Xaxis-0.3, df['CO2_bio'],color = 'gray',label = r'CO$_2$ bio')
-    ax1.fill_between(Xaxis-0.3, df['CO2_bio']-df['CO2bio_std'], df['CO2_bio']+df['CO2bio_std'])
-
-    ax2 = ax1.twinx()
-    ax2.set_ylabel(r'CO concentration [ppb]')
-    max_value = max(abs(df['CO_fire'].max()), abs(df['CO_fire'].min()))
-    ax2.set_ylim((50, max_value+5))
-    lns1 = ax2.plot(Xaxis-0.3, df['CO_fire'],color = 'gray',label = r'CO$_2$ fire')
-    ax2.fill_between(Xaxis-0.3, df['CO_fire']-df['COfire_std'], df['CO_fire']+df['COfire_std'], color = 'lightgrey')
-    lns1 = ax2.plot(Xaxis-0.3, df['CO_bio'],color = 'gray',label = r'CO$_2$ bio')
-    ax2.fill_between(Xaxis-0.3, df['CO_bio']-df['CObio_std'], df['CO_bio']+df['CObio_std'])
-    #max_value = max(abs(df['diffCO'].max()), abs(df['diffCO'].min()))
-    #ax2.set_ylim((-max_value*1.1, max_value*1.1))
-    #lns2 = ax2.bar(Xaxis+0.3, df['diffCO'], width = 0.6, color = 'cornflowerblue', alpha = 0.6, label = r'$\Delta$CO')
-    #ax2.tick_params(axis = 'y')# not great but ok 
-    #ax2.set_xticks(Xaxis)
-
-    #lines, labels = ax1.get_legend_handles_labels()
-    #lines2, labels2 = ax2.get_legend_handles_labels()
-    #ax2.legend(lines + lines2, labels + labels2, loc='upper left')
-    # ticks
-    ticklabels = ['']*len(df['time'][:])
-    # Every 4th ticklable shows the month and day
-    ticklabels[0] = df['date'][0]
-    reference = df['date'][0]
-    for i in np.arange(1,len(df['time'][:])):
-        if df['date'][i]>reference:
-            ticklabels[i] = df['date'][i]
-            reference = df['date'][i]
-
-    ax2.xaxis.set_major_formatter(mpl.ticker.FixedFormatter(ticklabels))
-    plt.gcf().autofmt_xdate(rotation = 45)
-    #ax2.set_xticks(Xaxis, ticklabels)
-    #ax2.tick_params(axis = 'x', labelrotation = 30)
-
-    plt.axhline(y=0, color='k', linestyle='-')
-
-    fig.savefig(savepath+"{:e}".format(alpha)+"_concentrations_with_errors_measurement.png", dpi = 300, bbox_inches = 'tight')
+    plot_single_conc_with_errors(df, savepath, alpha)
+    plot_total_conc_with_errors(df, savepath, alpha)
 
     return 
 
