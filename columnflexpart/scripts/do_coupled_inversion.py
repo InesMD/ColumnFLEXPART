@@ -10,96 +10,108 @@ import cartopy.crs as ccrs
 from columnflexpart.scripts.plotting_routine_coupled_split_inversion import plot_spatial_flux_results_or_diff_to_prior, plot_averaging_kernel,plot_input_mask,plot_weekly_concentrations, plot_single_concentrations
 from columnflexpart.scripts.plotting_routine_coupled_split_inversion import split_eco_flux, split_predictions,  plot_prior_spatially, plot_single_total_concentrations, calculate_and_plot_averaging_kernel, plot_l_curve, split_gridded_flux
 from columnflexpart.scripts.plotting_routine_coupled_split_inversion import plot_emission_ratio, split_output, plot_spatial_result,plot_difference_of_posterior_concentrations_to_measurements, calculate_ratio_error
-from columnflexpart.scripts.plotting_routine_coupled_split_inversion import calc_single_conc_by_multiplication_with_K, plot_concentrations_measurements_and_errors
-def do_everything(savepath, Inversion, molecule_name, mask_datapath_and_name, week_min, week_max, week_num, alpha_list):
+from columnflexpart.scripts.plotting_routine_coupled_split_inversion import calc_single_conc_by_multiplication_with_K, plot_single_concentrations_measurements_and_errors
+def do_everything(savepath, Inversion, molecule_name, mask_datapath_and_name, week_min, week_max, week_num, alpha_list, alpha_listCO):
     class_num = plot_input_mask(savepath,mask_datapath_and_name, selection = [12])
 
     for l in alpha_list:
-        print('fitting')
-        Inversion.fit(alpha = l)#, xerr = err) 
-        
-        # save predictions
-        pred = pd.DataFrame(data =Inversion.predictions_flat.values, columns = ['predictions'])
-        pred.insert(loc = 1, column = 'prior_flux_eco', value = Inversion.flux_eco[:,Inversion.flux_eco.week == Inversion.week].squeeze())
-        pred.insert(loc = 1, column ='posterior_err_std', value = Inversion.prediction_errs_flat.values)
-        pred.insert(loc = 1, column ='prior_err_cov', value = np.diagonal(Inversion.flux_errs_flat.values))
-        pred.insert(loc = 1, column ='prior_err_std_with_lambda', value = np.sqrt(np.diagonal(Inversion.flux_errs_flat.values)/l))
-        pred.to_pickle(savepath + str("{:e}".format(l))+'_predictions.pkl')
-        
-        Inversion.predictions_flat = Inversion.predictions_flat.rename(dict(new = 'bioclass'))
-        #plot_l_curve(Inversion,err,molecule_name,savepath, l)
-        predictions_list = split_output(Inversion.predictions_flat, 'bioclass')
-        fluxCO2_fire, fluxCO2_bio, fluxCO_fire, fluxCO_bio = split_eco_flux(Inversion) ### change to use split_output too 
-        post_std_list = split_output(Inversion.prediction_errs_flat, 'new')
-        prior_std = xr.DataArray(np.sqrt(np.diagonal(Inversion.flux_errs_flat.values)/l),coords = [np.arange(0,len(np.diagonal(Inversion.flux_errs_flat.values)))], dims = 'new')
-        prior_std_list = split_output(prior_std, 'new')
-
-        flux_list = [fluxCO2_fire, fluxCO2_bio, fluxCO_fire, fluxCO_bio]
-        name_list = ['CO2_fire', 'CO2_ant_bio', 'CO_fire', 'CO_ant_bio']  
-
-        fluxCO2_fire_grid, fluxCO2_bio_grid, fluxCO_fire_grid, fluxCO_bio_grid = split_gridded_flux(Inversion)
-
-        flux_list_grid = [fluxCO2_fire_grid, fluxCO2_bio_grid, fluxCO_fire_grid, fluxCO_bio_grid]
-        name_list_grid = ['CO2_fire_grid', 'CO2_ant_bio_grid', 'CO_fire_grid', 'CO_ant_bio_grid']  
-      
-
-        for idx,predictions in enumerate(predictions_list):
-            print('Plotting prior spatially')
-            plot_prior_spatially(Inversion, flux_list[idx],name_list[idx], idx, savepath)
-            #plot_prior_spatially(Inversion, flux_list_grid[idx],name_list_grid[idx], idx,savepath, False)
-
-            print('Plotting spatial difference of results to prior')
-            plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion, predictions, flux_list[idx], name_list[idx],idx, l, diff =False)
+        for lCO in alpha_listCO: 
+            print('fitting')
+            # ugly workaround for having several regularization parameters: alpha = 1 and xerr = xerr *unit matrix with 1/desired alpha on diagonal
+            reg  = xr.zeros_like(Inversion.flux_errs_flat)
+            for i in range(int(reg.shape[0]/2)): 
+                reg[i,i] = 1/l
+            for i in range(int(reg.shape[0]/2),int(reg.shape[0]) ): 
+                reg[i,i] = 1/lCO
             
-            print('Plotting spatial results')
-            plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion, predictions, flux_list[idx], name_list[idx],idx, l, diff =True)
+            print(reg)
+            print(reg.shape[0]/2)
+            print(Inversion.flux_errs_flat * reg)
+            Inversion.fit(alpha = 1, xerr = Inversion.flux_errs_flat * reg) 
 
-            print('Plot posterior std deviation')
-            plot_spatial_result(Inversion.map_on_grid(post_std_list[idx]), savepath, str("{:e}".format(l))+'_post_std_'+name_list[idx]+'.png', 'pink_r', vmax =None, vmin =0, 
-                                cbar_kwargs = {'shrink':  0.835, 'label' : r'posterior standard deviation'}, norm = None)
-            # flux: 
-            plot_spatial_result(Inversion.map_on_grid(post_std_list[idx]*flux_list[idx]*12*10**6), savepath, str("{:e}".format(l))+'_post_std_flux_'+name_list[idx]+'.png', 'pink_r', vmax =None, vmin =0, 
-                                cbar_kwargs = {'shrink':  0.835, 'label' : r'posterior standard deviation [$\mu$gC m$^{-2}$ s$^{-1}$]'}, norm = None)
+            # save predictions
+            #pred = pd.DataFrame(data =Inversion.predictions_flat.values, columns = ['predictions'])
+            #pred.insert(loc = 1, column = 'prior_flux_eco', value = Inversion.flux_eco[:,Inversion.flux_eco.week == Inversion.week].squeeze())
+            #pred.insert(loc = 1, column ='posterior_err_std', value = Inversion.prediction_errs_flat.values)
+            #pred.insert(loc = 1, column ='prior_err_cov', value = np.diagonal(Inversion.flux_errs_flat.values))
+            #pred.insert(loc = 1, column ='prior_err_std_with_lambda', value = np.sqrt(np.diagonal(Inversion.flux_errs_flat.values)/l))
+            #pred.to_pickle(savepath + str("{:e}".format(l))+'_predictions.pkl')
+            
+            Inversion.predictions_flat = Inversion.predictions_flat.rename(dict(new = 'bioclass'))
+            #plot_l_curve(Inversion,err,molecule_name,savepath, l)
+            predictions_list = split_output(Inversion.predictions_flat, 'bioclass')
+            fluxCO2_fire, fluxCO2_bio, fluxCO_fire, fluxCO_bio = split_eco_flux(Inversion) ### change to use split_output too 
+            #post_std_list = split_output(Inversion.prediction_errs_flat, 'new')
+            prior_std = xr.DataArray(np.sqrt(np.diagonal(Inversion.flux_errs_flat.values)/l),coords = [np.arange(0,len(np.diagonal(Inversion.flux_errs_flat.values)))], dims = 'new')
+            prior_std_list = split_output(prior_std, 'new')
 
-            #(prior variance(lambda considered) - posterior variance)/prior variance = (prior variance/lambda - post variance)/prior variance
-            print('Plot error variance reduction/Uncertainty reduction')
-            plot_spatial_result(Inversion.map_on_grid((prior_std_list[idx]-post_std_list[idx])/prior_std_list[idx]), savepath,
-                                       str("{:e}".format(l))+'_uncertainty_reduction_'+name_list[idx]+'.png', 'bone_r', vmax =1, vmin =-0.25, 
-                                cbar_kwargs = {'shrink':  0.835, 'label' : r'uncertainty reduction'}, norm = None)
+            flux_list = [fluxCO2_fire, fluxCO2_bio, fluxCO_fire, fluxCO_bio]
+            name_list = ['CO2_fire', 'CO2_ant_bio', 'CO_fire', 'CO_ant_bio']  
 
-        
-        ratio_err = calculate_ratio_error(post_std_list[0], post_std_list[2], predictions_list[0], predictions_list[2])
-        print(ratio_err)
-        plot_spatial_result(Inversion.map_on_grid(ratio_err), savepath,
-                                       str("{:e}".format(l))+'_ratio_err.png', 'pink_r', vmax =None, vmin =0, 
-                                cbar_kwargs = {'shrink':  0.835, 'label' : r'$\Delta$CO$_2$/$\Delta$CO standard deviation'}, norm = None)
-        plot_spatial_result(Inversion.map_on_grid(ratio_err), savepath,
-                                       str("{:e}".format(l))+'_ratio_err_cbar_cut.png', 'pink_r', vmax =5, vmin =0, 
-                                cbar_kwargs = {'shrink':  0.835, 'label' : r'$\Delta$CO$_2$/$\Delta$CO standard deviation'}, norm = None)
-        plot_spatial_result(Inversion.map_on_grid(ratio_err*flux_list[0]/flux_list[2]*44/28), savepath,
-                                       str("{:e}".format(l))+'_ratio_err_flux_cbar_cut.png', 'pink_r', vmax =None, vmin =0, 
-                                cbar_kwargs = {'shrink':  0.835, 'label' : r'$\Delta$CO$_2$/$\Delta$CO standard deviation [gCO$_2$/gCO]'}, norm = None)
-        
-        plot_concentrations_measurements_and_errors(Inversion, savepath, l)
-        #plot_emission_ratio(savepath, Inversion, predictions_list[0], predictions_list[2], l, fluxCO2_fire, fluxCO_fire)
+            fluxCO2_fire_grid, fluxCO2_bio_grid, fluxCO_fire_grid, fluxCO_bio_grid = split_gridded_flux(Inversion)
 
-        #print('Plotting concentrations')
-        #total_CO2, total_CO = plot_single_concentrations(Inversion, l, savepath)
-        #CO2, CO = plot_single_total_concentrations(Inversion,l, savepath)
-        #plot_difference_of_posterior_concentrations_to_measurements(Inversion, savepath,l)
-
-        #calculate_and_plot_averaging_kernel(Inversion,savepath,l)
-        #plot_l_curve(Inversion, molecule_name, savepath, l, err = None)
+            flux_list_grid = [fluxCO2_fire_grid, fluxCO2_bio_grid, fluxCO_fire_grid, fluxCO_bio_grid]
+            name_list_grid = ['CO2_fire_grid', 'CO2_ant_bio_grid', 'CO_fire_grid', 'CO_ant_bio_grid']  
         
 
+            for idx,predictions in enumerate(predictions_list):
+                print('Plotting prior spatially')
+                plot_prior_spatially(Inversion, flux_list[idx],name_list[idx], idx, savepath)
+                #plot_prior_spatially(Inversion, flux_list_grid[idx],name_list_grid[idx], idx,savepath, False)
+
+                print('Plotting spatial difference of results to prior')
+                plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion, predictions, flux_list[idx], name_list[idx],idx, l, diff =False)
+                
+                print('Plotting spatial results')
+                plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion, predictions, flux_list[idx], name_list[idx],idx, l, diff =True)
+
+                print('Plot posterior std deviation')
+                #plot_spatial_result(Inversion.map_on_grid(post_std_list[idx]), savepath, str("{:e}".format(l))+'_post_std_'+name_list[idx]+'.png', 'pink_r', vmax =None, vmin =0, 
+                #                    cbar_kwargs = {'shrink':  0.835, 'label' : r'posterior standard deviation'}, norm = None)
+                # flux: 
+                #plot_spatial_result(Inversion.map_on_grid(post_std_list[idx]*flux_list[idx]*12*10**6), savepath, str("{:e}".format(l))+'_post_std_flux_'+name_list[idx]+'.png', 'pink_r', vmax =None, vmin =0, 
+                #                    cbar_kwargs = {'shrink':  0.835, 'label' : r'posterior standard deviation [$\mu$gC m$^{-2}$ s$^{-1}$]'}, norm = None)
+
+                #(prior variance(lambda considered) - posterior variance)/prior variance = (prior variance/lambda - post variance)/prior variance
+                print('Plot error variance reduction/Uncertainty reduction')
+                #plot_spatial_result(Inversion.map_on_grid((prior_std_list[idx]-post_std_list[idx])/prior_std_list[idx]), savepath,
+                #                        str("{:e}".format(l))+'_uncertainty_reduction_'+name_list[idx]+'.png', 'bone_r', vmax =1, vmin =-0.25, 
+                 #                   cbar_kwargs = {'shrink':  0.835, 'label' : r'uncertainty reduction'}, norm = None)
+
+            
+            #ratio_err = calculate_ratio_error(post_std_list[0], post_std_list[2], predictions_list[0], predictions_list[2])
+            #print(ratio_err)
+            #plot_spatial_result(Inversion.map_on_grid(ratio_err), savepath,
+            #                            str("{:e}".format(l))+'_ratio_err.png', 'pink_r', vmax =None, vmin =0, 
+            #                        cbar_kwargs = {'shrink':  0.835, 'label' : r'$\Delta$CO$_2$/$\Delta$CO standard deviation'}, norm = None)
+            #plot_spatial_result(Inversion.map_on_grid(ratio_err), savepath,
+            #                            str("{:e}".format(l))+'_ratio_err_cbar_cut.png', 'pink_r', vmax =5, vmin =0, 
+            #                        cbar_kwargs = {'shrink':  0.835, 'label' : r'$\Delta$CO$_2$/$\Delta$CO standard deviation'}, norm = None)
+            #plot_spatial_result(Inversion.map_on_grid(ratio_err*flux_list[0]/flux_list[2]*44/28), savepath,
+            #                            str("{:e}".format(l))+'_ratio_err_flux_cbar_cut.png', 'pink_r', vmax =None, vmin =0, 
+            #                        cbar_kwargs = {'shrink':  0.835, 'label' : r'$\Delta$CO$_2$/$\Delta$CO standard deviation [gCO$_2$/gCO]'}, norm = None)
+            
+            plot_single_concentrations_measurements_and_errors(Inversion, savepath, l, prior_std)
+            #plot_emission_ratio(savepath, Inversion, predictions_list[0], predictions_list[2], l, fluxCO2_fire, fluxCO_fire)
+
+            #print('Plotting concentrations')
+            #total_CO2, total_CO = plot_single_concentrations(Inversion, l, savepath)
+            #CO2, CO = plot_single_total_concentrations(Inversion,l, savepath)
+            #plot_difference_of_posterior_concentrations_to_measurements(Inversion, savepath,l)
+
+            #calculate_and_plot_averaging_kernel(Inversion,savepath,l)
+            #plot_l_curve(Inversion, molecule_name, savepath, l, err = None)
+        
+        
 ######################### adapt stuff from here on ####################################
-alpha_list = [3.2e-3]
-for prior_err_CO in [2]:
-    for prior_err_CO2 in [2]: # adapt savepaths for different prior errors
-        for meas_err_CO in [6]:
-            for meas_err_CO2 in [2]:
+alpha_list = [1e-3]
+alpha_listCO = [1e-1]
+for prior_err_CO in [1]:
+    for prior_err_CO2 in [1]: # adapt savepaths for different prior errors
+        for meas_err_CO in [1]:
+            for meas_err_CO2 in [1]:
                 for correlation in [0.7]:
-                    savepath = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/Images_coupled_Inversion/everything_splitted_first_correlation_setup_weekly_inversion/CO_like_CO2_prior/Working_Setup/CO2_'+str(prior_err_CO2*100)+'_CO_'+str(prior_err_CO*100)+'/CO2_'+str(meas_err_CO2)+'_CO_'+str(meas_err_CO)+'/Corr_'+str(correlation)+'/'
+                    savepath = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/Images_coupled_Inversion/everything_splitted_first_correlation_setup_weekly_inversion/CO_like_CO2_prior/2_reg_params/CO2_'+str(prior_err_CO2*100)+'_CO_'+str(prior_err_CO*100)+'/CO2_'+str(meas_err_CO2)+'_CO_'+str(meas_err_CO)+'/Corr_'+str(correlation)+'/'
                     if not os.path.isdir(savepath): os.makedirs(savepath) 
                     else: print('WARNING: savepath already exists')
                     mask = "/home/b/b382105/ColumnFLEXPART/resources/Ecosystems_AK_based_split_with_21_and_20_larger_and_4_split.nc"#OekomaskAU_Flexpart_version8_all1x1"#Ecosystems_AK_based_split_with_21_and_20_larger.nc"#OekomaskAU_Flexpart_version8_all1x1"#Ecosystems_AK_based_split_with_21_and_20_larger.nc"
@@ -135,5 +147,5 @@ for prior_err_CO in [2]:
                         ) 
                     print('Initialization done')
 
-                    do_everything(savepath, Inversion,'CO',mask, 52, 52, 6, alpha_list)
+                    do_everything(savepath, Inversion,'CO',mask, 52, 52, 6, alpha_list, alpha_listCO)
     
