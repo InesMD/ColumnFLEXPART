@@ -641,11 +641,7 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
 
     def get_Cprior_matrix(self): 
         # ist momentatn ja gleich pro Woche, daher nur für final regions, ohne Wochenkoordinate konsturiert
-        #print(self.flux.final_regions.shape)
         n_reg = int(self.bioclass_mask.values.max()) 
-        #print(n_reg)
-        #print(Cprior)
-        #print(Cprior.shape)
         Cprior = np.zeros((self.flux_eco.final_regions.shape[0], self.flux_eco.final_regions.shape[0]))
         # set 1 at "block diagonal" - fire CO2 and fire Co2 are max correlated
         Cprior[:n_reg+1, :n_reg+1] = 1
@@ -653,51 +649,20 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
         Cprior[2*(n_reg+1):3*(n_reg+1), 2*(n_reg+1):3*(n_reg+1)] = 1
         Cprior[3*(n_reg+1):4*(n_reg+1),3*(n_reg+1) :4*(n_reg+1)] = 1
 
+
         # correlate the fires (Co and Co2) with 0.7 (ant and bi onot correlated)
         Cprior[:n_reg+1,2*(n_reg+1) :3*(n_reg+1)] = self.correlation
         Cprior[2*(n_reg+1) :3*(n_reg+1), :n_reg+1] = self.correlation
-        #print(Cprior[np.where(Cprior!=0)])
-        # DImensions cannot be called the same, check with mutliplication that names of coordinates etc fit !!!!!!!!!!!!!!!!!
-        '''
-        if len(self.flux_eco.week.values) == 6: 
-            C = np.block([[Cprior, Cprior, Cprior, Cprior, Cprior,Cprior], 
-                     [Cprior, Cprior, Cprior, Cprior, Cprior,Cprior],
-                     [Cprior, Cprior, Cprior, Cprior, Cprior,Cprior],
-                     [Cprior, Cprior, Cprior, Cprior, Cprior,Cprior],
-                     [Cprior, Cprior, Cprior, Cprior, Cprior,Cprior],
-                     [Cprior, Cprior, Cprior, Cprior, Cprior,Cprior]])
-        elif len(self.flux_eco.week.values) == 5: 
-            C = np.block([[Cprior, Cprior, Cprior, Cprior, Cprior],
-                         [Cprior, Cprior, Cprior, Cprior, Cprior],
-                         [Cprior, Cprior, Cprior, Cprior, Cprior],
-                         [Cprior, Cprior, Cprior, Cprior, Cprior],
-                         [Cprior, Cprior, Cprior, Cprior, Cprior]])
-        elif len(self.flux_eco.week.values) ==4 : 
-            C = np.block([[Cprior, Cprior, Cprior, Cprior],
-                         [Cprior, Cprior, Cprior, Cprior],
-                         [Cprior, Cprior, Cprior, Cprior],
-                         [Cprior, Cprior, Cprior, Cprior]])
-        else: 
-            raise ValueError('Cprior matrix cannot be constructed because number of weeks is not 4,5 or 6')
-        '''
-        #plt.figure()
-        #plt.imshow(Cprior)#Cprior.plot(x = 'final_regions', y = 'final_regions')
-        #plt.savefig('/home/b/b382105/test/ColumnFLEXPART/columnflexpart/scripts/C_prior.png')
-        #plt.close()
-        #print(Cprior)
-        #print(Cprior[np.where(Cprior!=0)])
-        #print(C.shape)
-        #print(self.flux_eco_flat.new.values)
-        #Cprior = xr.DataArray(data = C ,dims = ["final_regions", "final_regions2"],
-        #                       coords = dict(final_regions =(["final_regions"], self.flux_eco_flat.new.values), 
-        #                                     final_regions2 =(["final_regions2"], self.flux_eco_flat.new.values)))
-        
+
+        #print('Cprior')
+        #print((n_reg+1)*2)
+        #print(self.flux_eco.final_regions.shape[0])
+        #print(Cprior[100,:])
+        #print(Cprior[:,100])
+
         Cprior = xr.DataArray(data = Cprior ,dims = ["final_regions", "final_regions2"],
                             coords = dict(final_regions =(["final_regions"], self.footprints_flat.final_regions.values), 
                                         final_regions2 =(["final_regions2"],  self.footprints_flat.final_regions.values)))
-        #print(Cprior.isnull())
-        #plt.imshow(Cprior)
-        #plt.savefig('/home/b/b382105/test/ColumnFLEXPART/columnflexpart/scripts/Cprior.png')
         self.Cprior = Cprior
         return Cprior
     
@@ -827,8 +792,8 @@ class CoupledInversion(InversionBioclass):# oder von InversionBioClass?
             if isinstance(xerr, xr.DataArray):
                 if xerr.size == 1:
                     xerr = np.ones_like(flux_errs) * xerr.values
-                elif xerr.shape == self.flux_errs.shape:
-                    xerr = xerr.stack(new=[self.time_coord, *self.spatial_valriables]).values        
+                #elif xerr.shape == self.flux_errs_flat.shape:
+                #    xerr = xerr.stack(new=[self.time_coord, *self.spatial_valriables]).values        
                 else:
                     xerr.values
             flux_errs = xerr

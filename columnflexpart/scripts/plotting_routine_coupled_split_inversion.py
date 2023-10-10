@@ -100,11 +100,11 @@ def plot_averaging_kernel(Inversion,ak_final, class_num, savepath, savename):
 
 
 
-def calculate_and_plot_averaging_kernel(Inversion, savepath, alpha): 
+def calculate_and_plot_averaging_kernel(Inversion, savepath, alpha, alphaCO): 
     akCO2_fire, akCO2_bio, akCO_fire, akCO_bio = calculate_averaging_kernel(Inversion)
     name_list = ['_CO2_fire_', '_CO2_bio_', '_CO_fire_', '_CO_bio_']
     for idx,ak in enumerate([akCO2_fire, akCO2_bio, akCO_fire, akCO_bio]):
-        savename = str("{:e}".format(alpha))+'_ak_spatial_'+name_list[idx]+'.png'
+        savename = str("{:.2e}".format(alpha))+"_CO2_"+"{:.2e}".format(alphaCO)+'_CO_ak_spatial_'+name_list[idx]+'.png'
         plot_averaging_kernel(Inversion,ak,Inversion.number_of_reg, savepath, savename)
 
 
@@ -144,15 +144,15 @@ def plot_prior_spatially(Inversion, flux, name, idx, savepath, eco = True):
     elif idx == 1:
         plot_spatial_result(spatial_flux, savepath,savename, 'seismic', vmax = 10, vmin = -10, cbar_kwargs = {'label' : r'weekly flux [$\mu$gC m$^{-2}$s$^{-1}$]', 'shrink': 0.835}  )
     elif idx == 2:
-        plot_spatial_result(spatial_flux, savepath,savename, 'seismic', vmax = 10, vmin = 10, cbar_kwargs = {'label' : r'weekly flux [$\mu$gC m$^{-2}$s$^{-1}$]', 'shrink': 0.835}  )
+        plot_spatial_result(spatial_flux, savepath,savename, 'seismic', vmax = 5, vmin = -5, cbar_kwargs = {'label' : r'weekly flux [$\mu$gC m$^{-2}$s$^{-1}$]', 'shrink': 0.835}  )
     elif idx == 3:
         plot_spatial_result(spatial_flux, savepath,savename, 'seismic', vmax = 0.4, vmin = -0.4, cbar_kwargs = {'label' : r'weekly flux [$\mu$gC m$^{-2}$s$^{-1}$]', 'shrink': 0.835}  )
 
-def plot_emission_ratio(savepath, Inversion, predictionsCO2, predictionsCO, alpha, fluxCO2, fluxCO):
+def plot_emission_ratio(savepath, Inversion, predictionsCO2, predictionsCO, alpha, alphaCO, fluxCO2, fluxCO):
     # scaling factors
     predictions = predictionsCO2/predictionsCO
     spatial_result = Inversion.map_on_grid(predictions)# gleichwer name Feuer und nicht feuer
-    savename = str("{:e}".format(alpha))+"_ratio_CO2_over_CO_Scaling_factor_"+str(Inversion.week)+".png"
+    savename = str("{:.2e}".format(alpha))+"_CO2_"+"{:.2e}".format(alphaCO)+"_CO_ratio_CO2_over_CO_Scaling_factor_"+str(Inversion.week)+".png"
 
     max_value = max(abs(spatial_result.values.max()-1), abs(1-spatial_result.values.min()))
     divnorm=colors.TwoSlopeNorm(vmin = 1-max_value, vcenter=1, vmax = 1+max_value)
@@ -160,18 +160,18 @@ def plot_emission_ratio(savepath, Inversion, predictionsCO2, predictionsCO, alph
     plot_spatial_result(spatial_result, savepath, savename, 'coolwarm', norm = divnorm)
     # flux: # für eco setup 
     spatial_flux = Inversion.map_on_grid(predictionsCO2/predictionsCO * fluxCO2/fluxCO*44/28)
-    savename = str("{:e}".format(alpha))+"_ratio_CO2_over_CO_flux_"+str(Inversion.week)+".png"
+    savename = str("{:.2e}".format(alpha))+"_CO2_"+"{:.2e}".format(alphaCO)+"_CO_ratio_CO2_over_CO_flux_"+str(Inversion.week)+".png"
     max_value = max(abs(spatial_flux.values.max()-14.4), abs(14.4-spatial_flux.values.min()))
     divnorm=colors.TwoSlopeNorm(vmin = 14.4-max_value, vcenter=14.4, vmax = 14.4+max_value)
     plot_spatial_result(spatial_flux, savepath, savename, 'coolwarm',  cbar_kwargs = {'label' : r'$\Delta$CO$_2$/$\Delta$CO [gCO$_2$/gCO]', 'shrink': 0.835} ,norm = divnorm)
     divnorm=colors.TwoSlopeNorm(vmin = 14.4-1, vcenter=14.4, vmax = 14.4+1)
-    savename = str("{:e}".format(alpha))+"_ratio_CO2_over_CO_flux_cut_cbar_"+str(Inversion.week)+".png"
+    savename = str("{:.2e}".format(alpha))+"_CO2_"+"{:.2e}".format(alphaCO)+"_CO_ratio_CO2_over_CO_flux_cut_cbar_"+str(Inversion.week)+".png"
     plot_spatial_result(spatial_flux, savepath, savename, 'coolwarm',  cbar_kwargs = {'label' : r'$\Delta$CO$_2$/$\Delta$CO [gCO$_2$/gCO]', 'shrink': 0.835} ,norm = divnorm)
     #spatial_resultCO = Inversion.map_on_grid(predictionsCO)
     
     return
 
-def plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion, predictions,flux, name, idx, alpha, diff =False):
+def plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion, predictions,flux, name, idx, alpha,alphaCO, diff =False):
     factor = 12*10**6
     plt.rcParams.update({'font.size':15})   
     
@@ -179,7 +179,7 @@ def plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion, predictions,
     if diff== True: 
         diff_flux = (predictions- xr.ones_like(predictions))* flux
         diff_spatial_flux = Inversion.map_on_grid(diff_flux)*factor 
-        savename = str("{:e}".format(alpha))+'_'+name+'Diff_to_prior_week_'+str(Inversion.week)+'.png'
+        savename = str("{:.2e}".format(alpha))+"_CO2_"+"{:.2e}".format(alphaCO)+"_CO_"+name+'Diff_to_prior_week_'+str(Inversion.week)+'.png'
 
         if idx == 2: 
             plot_spatial_result(diff_spatial_flux, savepath, savename, 'seismic',vmax = 20, vmin = -20, cbar_kwargs = {'label' : r'weekly flux [$\mu$gC m$^{-2}$ s$^{-1}$]', 'shrink':  0.835})
@@ -192,14 +192,14 @@ def plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion, predictions,
     
     else: 
         # plot scaling factors
-        savename = str("{:e}".format(alpha))+"_Scaling_factor_"+name+str(Inversion.week)+".png"
+        savename = str("{:.2e}".format(alpha))+"_CO2_"+"{:.2e}".format(alphaCO)+"_CO_Scaling_factor_"+name+str(Inversion.week)+".png"
         if idx == 0 or idx == 1: 
             plot_spatial_result(spatial_result, savepath, savename, 'viridis')
         else:
             plot_spatial_result(spatial_result, savepath, savename, 'viridis')
         
         #plot fluxes
-        savename = str("{:e}".format(alpha))+"_Spatial_flux_"+name+str(Inversion.week)+".png"
+        savename = str("{:.2e}".format(alpha))+"_CO2_"+"{:.2e}".format(alphaCO)+"_CO_Spatial_flux_"+name+str(Inversion.week)+".png"
         spatial_flux = Inversion.map_on_grid(predictions * flux)*factor
 
         if idx == 0: 
@@ -460,7 +460,7 @@ def calc_concentrations(Inversion, pred_fire, pred_bio, flux_fire, flux_bio, mol
 
     return conc_sum_fire , conc_sum_bio, conc_sum_fire_prior, conc_sum_bio_prior, ds
 
-def plot_fire_bio_concentrations(conc_tot_fire,conc_tot_bio,prior_fire, prior_bio, ds, savepath, alpha, molecule_name): 
+def plot_fire_bio_concentrations(conc_tot_fire,conc_tot_bio,prior_fire, prior_bio, ds, savepath, alpha, alphaCO,molecule_name): 
     if molecule_name == 'CO':
         y = 35
         ymin = 0
@@ -516,10 +516,10 @@ def plot_fire_bio_concentrations(conc_tot_fire,conc_tot_bio,prior_fire, prior_bi
     ax2.grid(axis='x')
   
     plt.subplots_adjust(hspace=0)
-    plt.savefig(savepath+str("{:e}".format(alpha))+'_'+molecule_name+'_concentrations_results.png', dpi = 300, bbox_inches = 'tight')
+    plt.savefig(savepath+str("{:.2e}".format(alpha))+"_CO2_"+"{:.2e}".format(alphaCO)+'_CO_'+molecule_name+'_concentrations_results.png', dpi = 300, bbox_inches = 'tight')
 
 
-def plot_total_concentrations(conc_tot, prior_tot, ds, savepath, alpha, molecule_name): 
+def plot_total_concentrations(conc_tot, prior_tot, ds, savepath, alpha, alphaCO,molecule_name): 
     if molecule_name == 'CO':
         y = 35
         unit = 'ppb'
@@ -569,23 +569,23 @@ def plot_total_concentrations(conc_tot, prior_tot, ds, savepath, alpha, molecule
     ax2.grid(axis='x')
   
     plt.subplots_adjust(hspace=0)
-    plt.savefig(savepath+str("{:e}".format(alpha))+'_'+molecule_name+'_total_concentrations_results_total_K_times_scaling.png', dpi = 300, bbox_inches = 'tight')
+    plt.savefig(savepath+str("{:.2e}".format(alpha))+"_CO2_"+"{:.2e}".format(alphaCO)+'_CO_'+molecule_name+'_total_concentrations_results_total_K_times_scaling.png', dpi = 300, bbox_inches = 'tight')
 
 
 
 
-def plot_single_concentrations(Inversion, alpha, savepath): 
+def plot_single_concentrations(Inversion, alpha, alphaCO,savepath): 
 
     #conc_tot_fire, conc_tot_bio, prior_fire, prior_bio, ds = calc_concentrations(Inversion, pred_fire, pred_bio, flux_fire, flux_bio,molecule_name,alpha, savepath)
  
     conc, prior_conc, dsCO, dsCO2 = calc_single_conc_by_multiplication_with_K(Inversion, Inversion.predictions_flat)
 
-    plot_fire_bio_concentrations(conc[0],conc[1], prior_conc[0], prior_conc[1], dsCO2, savepath, alpha, 'CO2')
-    plot_fire_bio_concentrations(conc[2],conc[3], prior_conc[2], prior_conc[3], dsCO, savepath, alpha, 'CO')
+    plot_fire_bio_concentrations(conc[0],conc[1], prior_conc[0], prior_conc[1], dsCO2, savepath, alpha, alphaCO, 'CO2')
+    plot_fire_bio_concentrations(conc[2],conc[3], prior_conc[2], prior_conc[3], dsCO, savepath, alpha, alphaCO, 'CO')
    
     return conc[0]+conc[1]-dsCO2['background_inter'], conc[2]+conc[3]-dsCO['background_inter']
 
-def plot_single_total_concentrations(Inversion, alpha, savepath):
+def plot_single_total_concentrations(Inversion, alpha,alphaCO, savepath):
     '''
     conc_tot_fire, conc_tot_bio, prior_fire, prior_bio, ds = calc_concentrations(Inversion, pred_fire, pred_bio, flux_fire, flux_bio,molecule_name,alpha, savepath)
     
@@ -605,13 +605,13 @@ def plot_single_total_concentrations(Inversion, alpha, savepath):
     
 
 
-    plot_total_concentrations(conc_totCO2, priorCO2, dsCO2, savepath, alpha, 'CO2')
-    plot_total_concentrations(conc_totCO, priorCO, dsCO, savepath, alpha, 'CO')
+    plot_total_concentrations(conc_totCO2, priorCO2, dsCO2, savepath, alpha, alphaCO, 'CO2')
+    plot_total_concentrations(conc_totCO, priorCO, dsCO, savepath, alpha, alphaCO, 'CO')
 
     return conc_totCO2, conc_totCO
 
 
-def plot_difference_of_posterior_concentrations_to_measurements(Inversion, savepath, alpha):
+def plot_difference_of_posterior_concentrations_to_measurements(Inversion, savepath, alpha, alphaCO):
 
     plt.rcParams.update({'font.size' : 19 })
 
@@ -669,11 +669,11 @@ def plot_difference_of_posterior_concentrations_to_measurements(Inversion, savep
 
     plt.axhline(y=0, color='k', linestyle='-')
 
-    fig.savefig(savepath+"{:e}".format(alpha)+"_diff_measurement_total_conc.png", dpi = 300, bbox_inches = 'tight')
+    fig.savefig(savepath+"{:.2e}".format(alpha)+"_CO2_"+"{:.2e}".format(alphaCO)+"_CO_diff_measurement_total_conc.png", dpi = 300, bbox_inches = 'tight')
 
     return 
 
-def plot_single_conc_with_errors(df, savepath, alpha): 
+def plot_single_conc_with_errors(df, savepath, alpha, alphaCO): 
     # plotting 
     fig, ax = plt.subplots(2,1,figsize=(18,8))
     Xaxis = np.arange(0,2*len(df['time'][:]),2)
@@ -729,11 +729,11 @@ def plot_single_conc_with_errors(df, savepath, alpha):
 
     plt.axhline(y=0, color='k', linestyle='-')
 
-    fig.savefig(savepath+"{:e}".format(alpha)+"_single_concentrations_with_errors_measurement.png", dpi = 300, bbox_inches = 'tight')
+    fig.savefig(savepath+"{:.2e}".format(alpha)+"_CO2_"+"{:.2e}".format(alphaCO)+"_CO_single_concentrations_with_errors_measurement.png", dpi = 300, bbox_inches = 'tight')
 
 
 
-def plot_total_conc_with_errors(df, savepath, alpha): 
+def plot_total_conc_with_errors(df, savepath, alpha, alphaCO): 
     # plotting 
     fig, ax = plt.subplots(2,1,figsize=(18,10))
     Xaxis = np.arange(0,2*len(df['time'][:]),2)
@@ -749,9 +749,6 @@ def plot_total_conc_with_errors(df, savepath, alpha):
     lns1 = ax[0].plot(Xaxis,total_CO2,color = 'red',  label = r'total posterior')
     ax[0].fill_between(Xaxis, total_CO2-(df['CO2fire_std']+df['CO2bio_std']), total_CO2+(df['CO2fire_std']+df['CO2bio_std']), color = 'red', alpha = 0.5)
     #prior CO2
-    print('diff')
-    print(df['CO2_prior_std'])
-    print(df['CO2_prior']-df['CO2_prior_std'])
     lns1 = ax[0].plot(Xaxis,df['CO2_prior'],color = 'salmon',  label = r'total prior')
     ax[0].fill_between(Xaxis, df['CO2_prior']-(df['CO2_prior_std']), df['CO2_prior']+(df['CO2_prior_std']), color = 'salmon', alpha = 0.3)
 
@@ -791,12 +788,12 @@ def plot_total_conc_with_errors(df, savepath, alpha):
 
     plt.axhline(y=0, color='k', linestyle='-')
 
-    fig.savefig(savepath+"{:e}".format(alpha)+"_total_concentrations_with_errors_measurement.png", dpi = 300, bbox_inches = 'tight')
+    fig.savefig(savepath+"{:.2e}".format(alpha)+"_CO2_"+"{:.2e}".format(alphaCO)+"_CO_total_concentrations_with_errors_measurement.png", dpi = 300, bbox_inches = 'tight')
 
 
 
 
-def plot_single_concentrations_measurements_and_errors(Inversion, savepath, alpha, prior_std):
+def plot_single_concentrations_measurements_and_errors(Inversion, savepath, alpha, alphaCO, prior_std):
 
     plt.rcParams.update({'font.size' : 19 })
 
@@ -850,8 +847,8 @@ def plot_single_concentrations_measurements_and_errors(Inversion, savepath, alph
     df = df.sort_values(['time'], ascending = True).reset_index()
     df.insert(loc = 1, column = 'date', value = df['time'][:].dt.strftime('%Y-%m-%d'))
 
-    plot_single_conc_with_errors(df, savepath, alpha)
-    plot_total_conc_with_errors(df, savepath, alpha)
+    plot_single_conc_with_errors(df, savepath, alpha, alphaCO)
+    plot_total_conc_with_errors(df, savepath, alpha, alphaCO)
 
     return 
 
