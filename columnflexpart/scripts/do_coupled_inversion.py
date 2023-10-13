@@ -44,7 +44,7 @@ def do_everything(savepath, Inversion, molecule_name, mask_datapath_and_name, we
             predictions_list = split_output(Inversion.predictions_flat, 'bioclass')
             fluxCO2_fire, fluxCO2_bio, fluxCO_fire, fluxCO_bio = split_eco_flux(Inversion) ### change to use split_output too 
             post_std_list = split_output(Inversion.prediction_errs_flat, 'new')
-            prior_std = xr.DataArray(np.sqrt(np.diagonal(Inversion.flux_errs_flat.values*reg)),coords = [np.arange(0,len(np.diagonal(Inversion.flux_errs_flat.values)))], dims = 'new')
+            prior_std = xr.DataArray(np.sqrt(np.diagonal(Inversion.flux_errs_flat.values)),coords = [np.arange(0,len(np.diagonal(Inversion.flux_errs_flat.values)))], dims = 'new')
             prior_std_list = split_output(prior_std, 'new')
 
             flux_list = [fluxCO2_fire, fluxCO2_bio, fluxCO_fire, fluxCO_bio]
@@ -63,6 +63,7 @@ def do_everything(savepath, Inversion, molecule_name, mask_datapath_and_name, we
 
                 print('Plotting spatial difference of results to prior')
                 plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion, predictions, flux_list[idx], name_list[idx],idx, l,lCO, diff =False)
+                #plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion, predictions, flux_list[idx], name_list[idx]+'_45_',idx, l,lCO, vmin = -45, vmax = 45, diff =False)
                 
                 print('Plotting spatial results')
                 plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion, predictions, flux_list[idx], name_list[idx],idx, l,lCO, diff =True)
@@ -78,18 +79,17 @@ def do_everything(savepath, Inversion, molecule_name, mask_datapath_and_name, we
                                     cbar_kwargs = {'shrink':  0.835, 'label' : r'prior standard deviation '}, norm = None )
 
                 #(prior variance(lambda considered) - posterior variance)/prior variance = (prior variance/lambda - post variance)/prior variance
-                print('Plot error variance reduction/Uncertainty reduction')
-                print(prior_std_list[0])
-                print(post_std_list[0])
-                print(prior_std_list[0]-post_std_list[0])
-                print((prior_std_list[0]-post_std_list[0])/prior_std_list[0])
+
                 plot_spatial_result(Inversion.map_on_grid((prior_std_list[idx]-post_std_list[idx])/prior_std_list[idx]), savepath,
-                                        str("{:.2e}".format(l))+"_CO2_"+"{:.2e}".format(lCO)+'_CO_uncertainty_reduction_'+name_list[idx]+'.png', 'bone_r', vmax =1, vmin =0, 
+                                        str("{:.2e}".format(l))+"_CO2_"+"{:.2e}".format(lCO)+'_CO_uncertainty_reduction_'+name_list[idx]+'.png', 'bone_r', vmax =1, vmin = -0.1,
+                                    cbar_kwargs = {'shrink':  0.835, 'label' : r'uncertainty reduction'}, norm = None)
+                plot_spatial_result(Inversion.map_on_grid((prior_std_list[idx]-post_std_list[idx])/prior_std_list[idx]), savepath,
+                                        str("{:.2e}".format(l))+"_CO2_"+"{:.2e}".format(lCO)+'_CO_uncertainty_reduction_zero_enforced_'+name_list[idx]+'.png', 'bone_r', vmax =1, vmin = 0,
                                     cbar_kwargs = {'shrink':  0.835, 'label' : r'uncertainty reduction'}, norm = None)
 
             
             ratio_err = calculate_ratio_error(post_std_list[0], post_std_list[2], predictions_list[0], predictions_list[2])
-            #print(ratio_err)
+
             plot_spatial_result(Inversion.map_on_grid(ratio_err), savepath,
                                         str("{:.2e}".format(l))+"_CO2_"+"{:.2e}".format(lCO)+'_CO_ratio_err.png', 'pink_r', vmax =None, vmin =0, 
                                    cbar_kwargs = {'shrink':  0.835, 'label' : r'$\Delta$CO$_2$/$\Delta$CO standard deviation'}, norm = None)
@@ -109,31 +109,29 @@ def do_everything(savepath, Inversion, molecule_name, mask_datapath_and_name, we
             plot_difference_of_posterior_concentrations_to_measurements(Inversion, savepath,l, lCO)
 
             calculate_and_plot_averaging_kernel(Inversion,savepath,l, lCO)
-            #inv_result = Inversion.reg.compute_l_curve(alpha_list =[1])
-            #f = netCDF4.Dataset(savepath+str("{:.2e}".format(l))+"_CO2_"+"{:.2e}".format(lCO)+'_CO_inv_result.nc', 'w')
-            #parms = f.createGroup('parameters')
-            #for k,v in inv_result.items():
-            #    setattr(parms, k, v)
-            #with open(savepath+str("{:.2e}".format(l))+"_CO2_"+"{:.2e}".format(lCO)+'_CO_inv_result.pickle', 'wb') as handle:
-            #    pickle.dump(inv_result, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-            #with open(savepath+str("{:.2e}".format(l))+"_CO2_"+"{:.2e}".format(lCO)+'_CO_inv_result.pickle', 'rb') as handle:
-            #    b = pickle.load(handle)
 
 
             #plot_l_curve(Inversion, molecule_name, savepath, l, err = None)
 
 ######################### adapt stuff from here on ####################################
-alpha_list = [1e-3]
-alpha_listCO = [1e-1]#1e-3,1e-2,1e-1,5e-1,1]
+week = 1
+# ugly hardcoded list of start and end dates for week 48 2019 to week 1 2020 
+start_dates = [datetime.datetime(year = 2019, month = 11, day = 25), datetime.datetime(year = 2019, month = 12, day = 2), datetime.datetime(year = 2019, month = 12, day = 9), datetime.datetime(year = 2019, month = 12, day = 16), 
+               datetime.datetime(year = 2019, month = 12, day = 23), datetime.datetime(year = 2019, month = 12, day = 30)]
+end_dates = [datetime.datetime(year = 2019, month = 12, day = 1),datetime.datetime(year = 2019, month = 12, day = 8),datetime.datetime(year = 2019, month = 12, day = 15),datetime.datetime(year = 2019, month = 12, day = 22),
+             datetime.datetime(year = 2019, month = 12, day = 29),datetime.datetime(year = 2020, month = 1, day = 5)] # 10 days must be added to cpnsider the footprints then too 
+
+
+alpha_list = [1e-2]
+alpha_listCO = [2.12]#1e-3,1e-2,1e-1,5e-1,1]
 for alphaCO in alpha_listCO:
     for alphaCO2 in alpha_list:
         for prior_err_CO in [1]:
             for prior_err_CO2 in [1]: # adapt savepaths for different prior errors
-                for meas_err_CO in [6]:
+                for meas_err_CO in [1]:
                     for meas_err_CO2 in [1]:
                         for correlation in [0.7]:
-                            savepath = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/Images_coupled_Inversion/everything_splitted_first_correlation_setup_weekly_inversion/CO_like_CO2_prior/2_reg_params_coupled/CO2_'+str(prior_err_CO2*100)+'_CO_'+str(prior_err_CO*100)+'/CO2_'+str(meas_err_CO2)+'_CO_'+str(meas_err_CO)+'/Corr_'+str(correlation)+'/'
+                            savepath = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/Images_coupled_Inversion/everything_splitted_first_correlation_setup_weekly_inversion/CO_like_CO2_prior/2_reg_params_coupled/CO2_'+str(prior_err_CO2*100)+'_CO_'+str(prior_err_CO*100)+'/CO2_'+str(meas_err_CO2)+'_CO_'+str(meas_err_CO)+'/Corr_'+str(correlation)+'/'+str(week)+'/'
                             if not os.path.isdir(savepath): os.makedirs(savepath) 
                             else: print('WARNING: savepath already exists')
                             mask = "/home/b/b382105/ColumnFLEXPART/resources/Ecosystems_AK_based_split_with_21_and_20_larger_and_4_split.nc"#OekomaskAU_Flexpart_version8_all1x1"#Ecosystems_AK_based_split_with_21_and_20_larger.nc"#OekomaskAU_Flexpart_version8_all1x1"#Ecosystems_AK_based_split_with_21_and_20_larger.nc"
@@ -155,9 +153,9 @@ for alphaCO in alpha_listCO:
                                 flux_pathCO2 = "/work/bb1170/RUN/b382105/Data/CarbonTracker2022/Flux/CT2022.flux1x1.",
                                 bioclass_path = mask,
                                 month = '2019-12',
-                                date_min = datetime.datetime(year = 2019, month = 12, day = 23),
+                                date_min = datetime.datetime(year = 2019, month = 12, day = 30),
                                 area_bioreg = area_bioreg,
-                                week = 52,
+                                week = week,
                                 non_equal_region_size=non_equal_region_size,
                                 date_max = datetime.datetime(year= 2020, month = 1, day = 7),
                                 boundary=[110.0, 155.0, -45.0, -10.0], 
@@ -178,5 +176,5 @@ for alphaCO in alpha_listCO:
 
                             #with open(savepath+str("{:.2e}".format(alphaCO2))+"_CO2_"+"{:.2e}".format(alphaCO)+'_CO_inv_result.pickle', 'rb') as handle:
                             #    b = pickle.load(handle)
-                            do_everything(savepath, Inversion,'CO',mask, 52, 52, 6, alphaCO2, alphaCO)
+                            do_everything(savepath, Inversion,'CO',mask, week, week, 6, alphaCO2, alphaCO)
             
