@@ -8,15 +8,23 @@ import matplotlib as mpl
 import xarray as xr
 def plot_total_conc_with_errors(df, savepath, alpha, alphaCO): 
     # plotting 
-    df = df.sort_values(['time'], ascending = True).reset_index()
-    df['date'] = pd.to_datetime(df['time'], format = '%Y-%M-%D').dt.month
+    df = df.sort_values(['time'], ascending = True)
+    df['date'] = pd.to_datetime(df['time'], format = '%Y-%M-%D').dt.date
+    ds_mean = pd.read_pickle('/work/bb1170/RUN/b382105/Flexpart/TCCON/preparation/one_hour_runs/TCCON_mean_measurements_sept_to_march.pkl')
+    #ds_mean = ds_mean[(ds_mean['datetime']>=datetime.datetime(year=2019, month =9, day=1))&(ds_mean['datetime']<= datetime.datetime(year=2020, month =2, day=28))]
+    df= df[(df['time']>=datetime.datetime(year=2019, month =8, day=30))&(df['time']<= datetime.datetime(year=2020, month =3, day=1))].reset_index()
+
+    ds_mean = ds_mean[(ds_mean['datetime']>=datetime.datetime(year=2019, month =8, day=30))&(ds_mean['datetime']<= datetime.datetime(year=2020, month =3, day=1))].dropna().sort_values(['datetime'], ascending = True).reset_index()
+    print(ds_mean)
+    df.insert(loc = 0, column = 'number_of_measurements', value = ds_mean['number_of_measurements'])
+    print(df)
 
     plt.rcParams.update({'font.size':18})   
-    fig, ax = plt.subplots(2,1,figsize=(18,10))
-    Xaxis = np.arange(0,2*len(df['time'][:]),2)
+    fig, ax = plt.subplots(3,1,sharex = True, gridspec_kw={'height_ratios': [4,4,1.5]},figsize=(18,10))
+    Xaxis = np.arange(0,len(df['time'][:]),1)
     ax[0].set_ylabel(r'CO$_2$ [ppm]')
     ax[0].set_xlabel('date')
-    ax[0].set_xticks(Xaxis, ['']*len(df['time'][:]))
+    #ax[0].set_xticks(Xaxis, ['']*len(df['time'][:]))
     #ax1.tick_params(axis = 'y')
     max_value = max(abs(df['CO2_fire'].max()), abs(df['CO2_fire'].min()))
     ax[0].set_ylim((406, max_value+2))
@@ -25,6 +33,8 @@ def plot_total_conc_with_errors(df, savepath, alpha, alphaCO):
     #total CO2
     total_CO2 = df['CO2_fire']+df['CO2_bio']-df['CO2_background']
     ax[0].plot(Xaxis-0.3, df['CO2_meas'],color = 'dimgrey',label = r'measurements')
+
+    ax[0].plot(Xaxis, df['CO2_background'], color = 'k', label = 'background')
     #prior CO2
     lns1 = ax[0].plot(Xaxis,df['CO2_prior'],color = 'salmon',  label = r'total prior')
     ax[0].fill_between(Xaxis, df['CO2_prior']-(df['CO2_prior_std']), df['CO2_prior']+(df['CO2_prior_std']), color = 'salmon', alpha = 0.3)
@@ -41,35 +51,61 @@ def plot_total_conc_with_errors(df, savepath, alpha, alphaCO):
     # total CO
     total_CO = df['CO_fire']+df['CO_bio']-df['CO_background']
     ax2.plot(Xaxis-0.3, df['CO_meas'],color = 'dimgrey',label = r'measurements')
+    ax2.plot(Xaxis, df['CO_background'], color = 'k', label = 'background')
     lns1 = ax2.plot(Xaxis,df['CO_prior'],color = 'salmon',  label = r'total prior')
     ax2.fill_between(Xaxis, df['CO_prior']-(df['CO_prior_std']), df['CO_prior']+(df['CO_prior_std']), color = 'salmon', alpha = 0.3)
     lns1 = ax2.plot(Xaxis,total_CO,color = 'red',  label = r'total posterior')
     ax2.fill_between(Xaxis, total_CO-(df['COfire_std']+df['CObio_std']), total_CO+(df['COfire_std']+df['CObio_std']), color = 'red', alpha = 0.5)
     # prior CO 
     #total_prior_CO = df['CO_fire_prior']+df['CO_bio_prior']-df['CO_background']
-
+    ax[2].bar(Xaxis-0.3, df['number_of_measurements'], width=0.6, color = 'dimgrey')
+    ax[2].set_ylabel('N', labelpad=17)
+    ax[2].grid(axis = 'x')
+    ax2.grid(axis = 'both')
+    ax[0].grid(axis = 'both')
     ax[1].legend(loc = 'upper left')
-    '''
+    ax[2].set_xlim((0,len(df['time'])))
+    
     # ticks
     ticklabels = ['']*len(df['time'][:])
     # Every 4th ticklable shows the month and day
-    ticklabels[0] = df['date'][0]
-    reference = df['date'][0]
+    #ticklabels[0] = df['date'][0]
+    reference = df['date'][0].month
+    ticklabel_list = [df['date'][0]]
+    index_of_ticklabel_list = [0]
     for i in np.arange(1,len(df['time'][:])):
-        if reference<12 and df['date'][i]>reference:
+        if df['date'][i].month>reference and reference<12:
+            ticklabel_list.append(df['date'][i])
+            index_of_ticklabel_list.append(i)
             ticklabels[i] = df['date'][i]
-            reference = df['date'][i]
-        elif reference == 12 and df['date'][i] == 1: 
+            reference = df['date'][i].month
+        elif reference == 12 and df['date'][i].month == 1: 
+            ticklabel_list.append(df['date'][i])
+            index_of_ticklabel_list.append(i)
             ticklabels[i] = df['date'][i]
-            reference = df['date'][i]
-    ax[1].set_xticks(Xaxis, ticklabels)
-    ax[1].xaxis.set_major_formatter(mpl.ticker.FixedFormatter(ticklabels))
+            reference = df['date'][i].month
+    #ax[1].set_xticks(Xaxis, ticklabels)
+    print(ticklabel_list)
+    print(index_of_ticklabel_list)
+    ax[2].set_xticks(index_of_ticklabel_list, ticklabel_list)
+    ax[2].xaxis.set_major_formatter(mpl.ticker.FixedFormatter(ticklabel_list))
+
+    #ds_mean = pd.read_pickle('/work/bb1170/RUN/b382105/Flexpart/TCCON/preparation/one_hour_runs/TCCON_mean_measurements_sept_to_march.pkl')
+    #ds_mean = ds_mean[(ds_mean['datetime']>=datetime.datetime(year=2019, month =9, day=1))&(ds_mean['datetime']<= datetime.datetime(year=2020, month =2, day=28))]
+    #ds_mean = ds_mean[(ds_mean['datetime']>=datetime.datetime(year=2019, month =12, day=2))&(ds_mean['datetime']<= datetime.datetime(year=2020, month =1, day=1))]
+
+
+    #myFmt = DateFormatter("%Y-%m-%d")
+    #ax[1].xaxis.set_major_formatter(myFmt)
     plt.gcf().autofmt_xdate(rotation = 45)
     
     plt.axhline(y=0, color='k', linestyle='-')
-    '''
+    
+    #ax[0].set_xlim((datetime.datetime(year = 2019, month = 12, day = 1), datetime.datetime(year = 2019, month = 12, day = 31, hour = 23)))
+    #fig.autofmt_xdate()
+    plt.subplots_adjust(hspace=0)
 
-    fig.savefig(savepath+"{:.2e}".format(alpha)+"_CO2_"+"{:.2e}".format(alphaCO)+"_CO_total_concentrations_with_errors_measurement_test.png", dpi = 300, bbox_inches = 'tight')
+    fig.savefig(savepath+"{:.2e}".format(alpha)+"_CO2_"+"{:.2e}".format(alphaCO)+"_CO_total_concentrations_with_errors_measurement_entire_time_series.png", dpi = 300, bbox_inches = 'tight')
 
 
 def plotting(ds,savepath):
@@ -267,7 +303,7 @@ ak_CO2 = []
 ak_CO = []
 alphaCO2 = 1e-2
 alphaCO = 2.12
-for week in [48,49,50,51,52,1]:#[35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,1, 2,3, 4, 5, 6,7,8,9]:# namen checken!!!!!!!!!!!!!!
+for week in [35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,1, 2,3, 4, 5, 6,7,8,9]:# namen checken!!!!!!!!!!!!!!
     path = basic_path +'All_weeks/'+str(week)+'/'
     ds = pd.read_pickle(path+"{:.2e}".format(alphaCO2)+"_CO2_"+"{:.2e}".format(alphaCO)+'_concentrations_and_errors_only_one_week.pkl')
     ds.insert(loc = 1, column = 'akCO_mean', value = np.ones(ds['time'].shape[0])*xr.open_dataarray(path+"{:.2e}".format(alphaCO2)+"_CO2_"+"{:.2e}".format(alphaCO)+'_CO_ak_spatial__CO_fire_.nc').values.mean())
@@ -296,7 +332,7 @@ print(ds_tot)
 #plotting_diff_and_ak(ds_tot,basic_path+'All_weeks/Images/')
 
 #plotting(ds_tot,basic_path+'All_weeks/Images/')
-#plot_total_conc_with_errors(ds_tot, basic_path+'All_weeks/Images/',alphaCO2, alphaCO)
+plot_total_conc_with_errors(ds_tot, basic_path+'All_weeks/Images/',alphaCO2, alphaCO)
 #plot_total_conc_with_errors_linear_x_axis(ds_tot, basic_path+'All_weeks/Images/',alphaCO2, alphaCO)
 path = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/Images_coupled_Inversion/everything_splitted_first_correlation_setup_weekly_inversion/CO_like_CO2_prior/2_reg_params_coupled/CO2_100_CO_100/CO2_1_CO_1/Corr_0.7/'
 tot_spatial_result =  xr.open_dataset(path+str(48)+'/spatial_results_CO2_fire_week_'+str(48)+'.nc')
