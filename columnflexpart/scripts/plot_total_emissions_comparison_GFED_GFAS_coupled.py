@@ -5,6 +5,7 @@ import numpy as np
 #for Coupled Inversion CO 
 import geopandas as gpd
 from datetime import datetime
+import os
 from columnflexpart.classes.coupled_inversion import CoupledInversion
 
 
@@ -29,7 +30,7 @@ def calculate_united_mask(datapathmasks):
     return total_mask
 
 
-def multiply_masks_with_GFED(datapathmasks,name_mask, year, month, molecule,datapath_and_name_GFED, mask_monthly = False,just_land_mask = False): 
+def multiply_masks_with_GFED(datapathmasks,total_area_mask, name_mask, year, month, molecule,datapath_and_name_GFED, mask_monthly = False,just_land_mask = False): 
     if molecule == 'CO': 
         factor = 12/28
     elif molecule =='CO2': 
@@ -40,13 +41,13 @@ def multiply_masks_with_GFED(datapathmasks,name_mask, year, month, molecule,data
     xrGFED = GFED.set_index(['longitude', 'latitude']).to_xarray()
     if mask_monthly == True: 
         total_mask = calculate_united_mask(datapathmasks)
-        maskedGFED = xrGFED.total_emission*total_mask.__xarray_dataarray_variable__*factor
+        maskedGFED = xrGFED.total_emission*total_area_mask/(7692024*10**6)*total_mask.__xarray_dataarray_variable__*factor
     else: 
         weekly_mean_values = []
         if just_land_mask == False: 
             for week in [48,49,50,51,52,1]:
-                mask = xr.open_dataset(datapathmasks+name_mask+str(week)+'.nc')
-                maskedGFED = xrGFED.total_emission*mask.__xarray_dataarray_variable__
+                mask = xr.open_dataset(datapathmasks+name_mask)#+str(week)+'.nc')
+                maskedGFED = xrGFED.total_emission*total_area_mask/(7692024*10**6)*mask.__xarray_dataarray_variable__
                 if week == 48: 
                     weekly_mean_values.append(maskedGFED.sum(['latitude', 'longitude'])*factor*(1/31))
                 elif week == 1: 
@@ -57,7 +58,7 @@ def multiply_masks_with_GFED(datapathmasks,name_mask, year, month, molecule,data
             for week in [48,49,50,51,52,1]:
                 mask = xr.open_dataset(datapathmasks+'Mask_AU_land_bioclasses_based.nc')
                 mask = mask.rename({'Long': 'longitude', 'Lat':'latitude'})
-                maskedGFED = xrGFED.total_emission#*mask.bioclass
+                maskedGFED = xrGFED.total_emission*total_area_mask/(7692024*10**6)#*mask.bioclass
                 if week == 48: 
                     weekly_mean_values.append(maskedGFED.sum(['latitude', 'longitude'])*factor*(1/31))
                 elif week == 1: 
@@ -68,7 +69,7 @@ def multiply_masks_with_GFED(datapathmasks,name_mask, year, month, molecule,data
 
 
 
-def multiply_masks_with_GFAS(datapathmasks,name_mask, year, month, molecule,datapath_and_name_GFAS, just_land_mask = False): 
+def multiply_masks_with_GFAS(datapathmasks,total_area_mask,name_mask, year, month, molecule,datapath_and_name_GFAS, just_land_mask = False): 
     if molecule == 'CO': 
         factor = 12/28
         variable = 'cofire'
@@ -85,7 +86,7 @@ def multiply_masks_with_GFAS(datapathmasks,name_mask, year, month, molecule,data
         GFAS_week= GFAS_week[(pd.to_datetime(GFAS_week['date'])<=datetime(year= 2019, month = 12, day=days_in_week[str(week)][-1]))]
         GFAS_week = GFAS_week.set_index(['date','latitude','longitude']).to_xarray()
         if just_land_mask == False: 
-            mask = xr.open_dataset(datapathmasks+name_mask+str(week)+'.nc')
+            mask = xr.open_dataset(datapathmasks+name_mask)#+str(week)+'.nc')
             maskedGFAS = GFAS_week[variable]*mask.__xarray_dataarray_variable__
         else: 
             mask = xr.open_dataset(datapathmasks+'Mask_AU_land_bioclasses_based.nc')
@@ -94,23 +95,23 @@ def multiply_masks_with_GFAS(datapathmasks,name_mask, year, month, molecule,data
         #GFAS_week = GFAS_week.set_index(['longitude','latitude']).to_xarray()
         #
         if week == 48: 
-            weekly_mean_values.append(maskedGFAS.mean()*7692024*10**6*10**(-9)*factor*(1*24*60*60))
+            weekly_mean_values.append(maskedGFAS.mean()*total_area_mask*10**(-9)*factor*(1*24*60*60))
         else: 
-            weekly_mean_values.append(maskedGFAS.mean()*7692024*10**6*10**(-9)*factor*(7*24*60*60))
+            weekly_mean_values.append(maskedGFAS.mean()*total_area_mask*10**(-9)*factor*(7*24*60*60))
 
     for week in [1]: 
         GFAS_week = GFAS[(pd.to_datetime(GFAS['date'])>=datetime(year= 2019, month = 12, day=days_in_week[str(week)][0]))]
         GFAS_week = GFAS_week[(pd.to_datetime(GFAS_week['date'])<=datetime(year= 2020, month = 1, day=1))]
         GFAS_week = GFAS_week.set_index(['date','latitude','longitude']).to_xarray()
         if just_land_mask == False: 
-            mask = xr.open_dataset(datapathmasks+name_mask+str(week)+'.nc')
+            mask = xr.open_dataset(datapathmasks+name_mask)#+str(week)+'.nc')
             maskedGFAS = GFAS_week[variable]*mask.__xarray_dataarray_variable__
         else: 
             mask = xr.open_dataset(datapathmasks+'Mask_AU_land_bioclasses_based.nc')
             maskedGFAS = GFAS_week[variable]*mask.bioclass
         #maskedGFAS = GFAS_week.co2fire*mask.__xarray_dataarray_variable__
         
-        weekly_mean_values.append(maskedGFAS.mean()*7692024*10**6*10**(-9)*factor*(2*24*60*60))
+        weekly_mean_values.append(maskedGFAS.mean()*total_area_mask*10**(-9)*factor*(2*24*60*60))
     return weekly_mean_values
 
 
@@ -127,7 +128,7 @@ def cut_Transcom_region(ds):
     gdf = gdf.loc[igdf]
     return gdf
 
-def calculate_total_weekly_emissions_with_mask(threshold, alphaCO2, alphaCO,mask_datapath, name_ak_mask):
+def calculate_total_weekly_emissions_with_mask(threshold, alphaCO2, alphaCO,total_area_masked_region, mask_datapath, name_ak_mask):
     sumsCOfire = []
     sumsCO2fire = []
     sumsCObio = []
@@ -146,12 +147,20 @@ def calculate_total_weekly_emissions_with_mask(threshold, alphaCO2, alphaCO,mask
     #gdf_CO_bio = cut_Transcom_region(CObio)
     #gdf_CO2_bio = cut_Transcom_region(CO2bio)
     #print(gdf_CO_fire['CO2'])
-    mask = xr.load_dataset(mask_datapath+name_ak_mask+str(week)+'.nc')
+    mask = xr.load_dataset(mask_datapath+name_ak_mask)#+str(week)+'.nc')
+    print(mask)
+
+    sumsCOfire.append((COfire*mask.__xarray_dataarray_variable__).mean()*10**(-6)*total_area_masked_region*10**(-12)*(1*24*60*60))
+    sumsCO2fire.append((mask.__xarray_dataarray_variable__*CO2fire).mean()*10**(-6)*total_area_masked_region*10**(-12)*(1*24*60*60))
+    sumsCObio.append((CObio*mask.__xarray_dataarray_variable__).mean()*10**(-6)*total_area_masked_region*10**(-12)*(1*24*60*60))
+    sumsCO2bio.append((CO2bio*mask.__xarray_dataarray_variable__).mean()*10**(-6)*total_area_masked_region*10**(-12)*(1*24*60*60))
+
+    '''
     sumsCOfire.append((COfire*mask.__xarray_dataarray_variable__).mean()*10**(-6)*7692024*10**6*10**(-12)*(1*24*60*60))
     sumsCO2fire.append((mask.__xarray_dataarray_variable__*CO2fire).mean()*10**(-6)*7692024*10**6*10**(-12)*(1*24*60*60))
     sumsCObio.append((CObio*mask.__xarray_dataarray_variable__).mean()*10**(-6)*7692024*10**6*10**(-12)*(1*24*60*60))
     sumsCO2bio.append((CO2bio*mask.__xarray_dataarray_variable__).mean()*10**(-6)*7692024*10**6*10**(-12)*(1*24*60*60))
-
+'''
     for week in [49,50,51,52]: 
 
         datapath_inversion = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/Images_coupled_Inversion/everything_splitted_first_correlation_setup_weekly_inversion/CO_like_CO2_prior/2_reg_params_coupled/CO2_100_CO_100/CO2_1_CO_1/Corr_0.7/'+str(week)+'/'
@@ -169,11 +178,11 @@ def calculate_total_weekly_emissions_with_mask(threshold, alphaCO2, alphaCO,mask
         #gdf_CO_bio = cut_Transcom_region(CObio)
         #gdf_CO2_bio = cut_Transcom_region(CO2bio)
         #gC/m^2/s für eine Woche 
-        mask = xr.load_dataset(mask_datapath+name_ak_mask+str(week)+'.nc')
-        sumsCOfire.append((COfire*mask.__xarray_dataarray_variable__).mean()*10**(-6)*7692024*10**6*10**(-12)*(7*24*60*60))
-        sumsCO2fire.append((CO2fire*mask.__xarray_dataarray_variable__).mean()*10**(-6)*7692024*10**6*10**(-12)*(7*24*60*60))
-        sumsCObio.append((CObio*mask.__xarray_dataarray_variable__).mean()*10**(-6)*7692024*10**6*10**(-12)*(7*24*60*60))
-        sumsCO2bio.append((CO2bio*mask.__xarray_dataarray_variable__).mean()*10**(-6)*7692024*10**6*10**(-12)*(7*24*60*60))
+        mask = xr.load_dataset(mask_datapath+name_ak_mask)#+str(week)+'.nc')
+        sumsCOfire.append((COfire*mask.__xarray_dataarray_variable__).mean()*10**(-6)*total_area_masked_region*10**(-12)*(7*24*60*60))
+        sumsCO2fire.append((CO2fire*mask.__xarray_dataarray_variable__).mean()*10**(-6)*total_area_masked_region*10**(-12)*(7*24*60*60))
+        sumsCObio.append((CObio*mask.__xarray_dataarray_variable__).mean()*10**(-6)*total_area_masked_region*10**(-12)*(7*24*60*60))
+        sumsCO2bio.append((CO2bio*mask.__xarray_dataarray_variable__).mean()*10**(-6)*total_area_masked_region*10**(-12)*(7*24*60*60))
 
     week = 1
     datapath_inversion = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/Images_coupled_Inversion/everything_splitted_first_correlation_setup_weekly_inversion/CO_like_CO2_prior/2_reg_params_coupled/CO2_100_CO_100/CO2_1_CO_1/Corr_0.7/1/'
@@ -185,12 +194,12 @@ def calculate_total_weekly_emissions_with_mask(threshold, alphaCO2, alphaCO,mask
     #gdf_CO2_fire = cut_Transcom_region(CO2fire)
     #gdf_CO_bio = cut_Transcom_region(CObio)
     #gdf_CO2_bio = cut_Transcom_region(CO2bio)
-    mask = xr.load_dataset(mask_datapath+name_ak_mask+str(week)+'.nc')
+    mask = xr.load_dataset(mask_datapath+name_ak_mask)#+str(week)+'.nc')
    
-    sumsCOfire.append((COfire*mask.__xarray_dataarray_variable__).mean()*10**(-6)*7692024*10**6*10**(-12)*(2*24*60*60))
-    sumsCO2fire.append((CO2fire*mask.__xarray_dataarray_variable__).mean()*10**(-6)*7692024*10**6*10**(-12)*(2*24*60*60))
-    sumsCObio.append((CObio*mask.__xarray_dataarray_variable__).mean()*10**(-6)*7692024*10**6*10**(-12)*(2*24*60*60))
-    sumsCO2bio.append((CO2bio*mask.__xarray_dataarray_variable__).mean()*10**(-6)*7692024*10**6*10**(-12)*(2*24*60*60))
+    sumsCOfire.append((COfire*mask.__xarray_dataarray_variable__).mean()*10**(-6)*total_area_masked_region*10**(-12)*(2*24*60*60))
+    sumsCO2fire.append((CO2fire*mask.__xarray_dataarray_variable__).mean()*10**(-6)*total_area_masked_region*10**(-12)*(2*24*60*60))
+    sumsCObio.append((CObio*mask.__xarray_dataarray_variable__).mean()*10**(-6)*total_area_masked_region*10**(-12)*(2*24*60*60))
+    sumsCO2bio.append((CO2bio*mask.__xarray_dataarray_variable__).mean()*10**(-6)*total_area_masked_region*10**(-12)*(2*24*60*60))
     print(sumsCOfire)
     datapath_inversion = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/Images_coupled_Inversion/everything_splitted_first_correlation_setup_weekly_inversion/CO_like_CO2_prior/2_reg_params_coupled/CO2_100_CO_100/CO2_1_CO_1/Corr_0.7/total_emissions/'
     data = xr.DataArray(data = sumsCOfire, coords = {'week': [48,49,50,51,52,1]})
@@ -204,7 +213,7 @@ def calculate_total_weekly_emissions_with_mask(threshold, alphaCO2, alphaCO,mask
 
     return sumsCOfire, sumsCObio, sumsCO2fire, sumsCO2bio
 
-def calculate_total_prior_weekly_emissions_with_mask(threshold, alphaCO2, alphaCO,mask_datapath, name_ak_mask):
+def calculate_total_prior_weekly_emissions_with_mask(threshold, alphaCO2, alphaCO,total_area_masked_region, mask_datapath, name_ak_mask):
     sumsCOfire = []
     sumsCO2fire = []
     sumsCObio = []
@@ -221,11 +230,11 @@ def calculate_total_prior_weekly_emissions_with_mask(threshold, alphaCO2, alphaC
     #gdf_CO2_fire = cut_Transcom_region(CO2fire)
     #gdf_CO_bio = cut_Transcom_region(CObio)
     #gdf_CO2_bio = cut_Transcom_region(CO2bio)
-    mask = xr.load_dataset(mask_datapath+name_ak_mask+str(week)+'.nc')
-    sumsCOfire.append((COfire*mask.__xarray_dataarray_variable__).mean()*10**(-6)*7692024*10**6*10**(-12)*(1*24*60*60))
-    sumsCO2fire.append((CO2fire*mask.__xarray_dataarray_variable__).mean()*10**(-6)*7692024*10**6*10**(-12)*(1*24*60*60))
-    sumsCObio.append((CObio*mask.__xarray_dataarray_variable__).mean()*10**(-6)*7692024*10**6*10**(-12)*(1*24*60*60))
-    sumsCO2bio.append((CO2bio*mask.__xarray_dataarray_variable__).mean()*10**(-6)*7692024*10**6*10**(-12)*(1*24*60*60))
+    mask = xr.load_dataset(mask_datapath+name_ak_mask)#+str(week)+'.nc')
+    sumsCOfire.append((COfire*mask.__xarray_dataarray_variable__).mean()*10**(-6)*total_area_masked_region*10**(-12)*(1*24*60*60))
+    sumsCO2fire.append((CO2fire*mask.__xarray_dataarray_variable__).mean()*10**(-6)*total_area_masked_region*10**(-12)*(1*24*60*60))
+    sumsCObio.append((CObio*mask.__xarray_dataarray_variable__).mean()*10**(-6)*total_area_masked_region*10**(-12)*(1*24*60*60))
+    sumsCO2bio.append((CO2bio*mask.__xarray_dataarray_variable__).mean()*10**(-6)*total_area_masked_region*10**(-12)*(1*24*60*60))
 
     for week in [49,50,51,52]: 
 
@@ -244,11 +253,11 @@ def calculate_total_prior_weekly_emissions_with_mask(threshold, alphaCO2, alphaC
         #gdf_CO_bio = cut_Transcom_region(CObio)
         #gdf_CO2_bio = cut_Transcom_region(CO2bio)
         #gC/m^2/s für eine Woche 
-        mask = xr.load_dataset(mask_datapath+name_ak_mask+str(week)+'.nc')
-        sumsCOfire.append((COfire*mask.__xarray_dataarray_variable__).mean()*10**(-6)*7692024*10**6*10**(-12)*(7*24*60*60))
-        sumsCO2fire.append((CO2fire*mask.__xarray_dataarray_variable__).mean()*10**(-6)*7692024*10**6*10**(-12)*(7*24*60*60))
-        sumsCObio.append((CObio*mask.__xarray_dataarray_variable__).mean()*10**(-6)*7692024*10**6*10**(-12)*(7*24*60*60))
-        sumsCO2bio.append((CO2bio*mask.__xarray_dataarray_variable__).mean()*10**(-6)*7692024*10**6*10**(-12)*(7*24*60*60))
+        mask = xr.load_dataset(mask_datapath+name_ak_mask)#+str(week)+'.nc')
+        sumsCOfire.append((COfire*mask.__xarray_dataarray_variable__).mean()*10**(-6)*total_area_masked_region*10**(-12)*(7*24*60*60))
+        sumsCO2fire.append((CO2fire*mask.__xarray_dataarray_variable__).mean()*10**(-6)*total_area_masked_region*10**(-12)*(7*24*60*60))
+        sumsCObio.append((CObio*mask.__xarray_dataarray_variable__).mean()*10**(-6)*total_area_masked_region*10**(-12)*(7*24*60*60))
+        sumsCO2bio.append((CO2bio*mask.__xarray_dataarray_variable__).mean()*10**(-6)*total_area_masked_region*10**(-12)*(7*24*60*60))
 
     week = 1
     datapath_inversion = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/Images_coupled_Inversion/everything_splitted_first_correlation_setup_weekly_inversion/CO_like_CO2_prior/2_reg_params_coupled/CO2_100_CO_100/CO2_1_CO_1/Corr_0.7/1/'
@@ -260,11 +269,11 @@ def calculate_total_prior_weekly_emissions_with_mask(threshold, alphaCO2, alphaC
     #gdf_CO2_fire = cut_Transcom_region(CO2fire)
     #gdf_CO_bio = cut_Transcom_region(CObio)
     #gdf_CO2_bio = cut_Transcom_region(CO2bio)
-    mask = xr.load_dataset(mask_datapath+name_ak_mask+str(week)+'.nc')
-    sumsCOfire.append((COfire*mask.__xarray_dataarray_variable__).mean()*10**(-6)*7692024*10**6*10**(-12)*(2*24*60*60))
-    sumsCO2fire.append((CO2fire*mask.__xarray_dataarray_variable__).mean()*10**(-6)*7692024*10**6*10**(-12)*(2*24*60*60))
-    sumsCObio.append((CObio*mask.__xarray_dataarray_variable__).mean()*10**(-6)*7692024*10**6*10**(-12)*(2*24*60*60))
-    sumsCO2bio.append((CO2bio*mask.__xarray_dataarray_variable__).mean()*10**(-6)*7692024*10**6*10**(-12)*(2*24*60*60))
+    mask = xr.load_dataset(mask_datapath+name_ak_mask)#+str(week)+'.nc')
+    sumsCOfire.append((COfire*mask.__xarray_dataarray_variable__).mean()*10**(-6)*total_area_masked_region*10**(-12)*(2*24*60*60))
+    sumsCO2fire.append((CO2fire*mask.__xarray_dataarray_variable__).mean()*10**(-6)*total_area_masked_region*10**(-12)*(2*24*60*60))
+    sumsCObio.append((CObio*mask.__xarray_dataarray_variable__).mean()*10**(-6)*total_area_masked_region*10**(-12)*(2*24*60*60))
+    sumsCO2bio.append((CO2bio*mask.__xarray_dataarray_variable__).mean()*10**(-6)*total_area_masked_region*10**(-12)*(2*24*60*60))
 
     datapath_inversion = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/Images_coupled_Inversion/everything_splitted_first_correlation_setup_weekly_inversion/CO_like_CO2_prior/2_reg_params_coupled/CO2_100_CO_100/CO2_1_CO_1/Corr_0.7/total_emissions/'
     data = xr.DataArray(data = sumsCOfire, coords = {'week': [48,49,50,51,52,1]})
@@ -462,7 +471,7 @@ def plot_CO2_GFAS_GFED_posterior_prior(savepath, savename,weekly_mean_GFAS, week
     ax.set_ylabel(f'CO$_2$ emission [TgC/week]')
 
     ax2.bar(0.6, np.array(prior).sum(),width = 0.6, label = 'Prior',color = 'orange')
-    ax2.bar(1.2,posterior, width = 0.6,label='Posterior', color = 'coral')
+    ax2.bar(1.2,posterior.sum(), width = 0.6,label='Posterior', color = 'coral')
     ax2.bar(1.8,np.array(weekly_mean_GFAS).sum() , width = 0.6,label='GFAS', alpha = 0.9,color = 'firebrick')#firebrick
     ax2.bar(2.4,np.array(weekly_mean_GFED).sum() , width = 0.6,label='GFED', color = 'maroon')
     ax2.set_xticks([0,1,2,3])
@@ -470,7 +479,8 @@ def plot_CO2_GFAS_GFED_posterior_prior(savepath, savename,weekly_mean_GFAS, week
     ax2.yaxis.set_label_position("right")
     ax2.yaxis.tick_right()
     ax2.set_ylabel(f'total CO$_2$ emission [TgC/month]')
-    ax2.set_ylim((0,22))#85))
+    max = np.array([np.array(prior).sum(),posterior.sum(),np.array(weekly_mean_GFAS).sum(),np.array(weekly_mean_GFED).sum()]).max()
+    ax2.set_ylim((0,max+0.05*max))#85))
 
     #ax2.legend()
     #ax.legend()
@@ -501,7 +511,7 @@ def plot_CO_GFAS_GFED_posterior_prior(savepath, savename, weekly_mean_GFAS, week
     ax.set_ylabel(f'CO emission [TgC/week]')
 
     ax2.bar(0.6, np.array(prior).sum(),width = 0.6, label = 'Prior',color = 'orange')
-    ax2.bar(1.2,posterior, width = 0.6,label='Posterior', color = 'coral')
+    ax2.bar(1.2,posterior.sum(), width = 0.6,label='Posterior', color = 'coral')
     ax2.bar(1.8,np.array(weekly_mean_GFAS).sum() , width = 0.6,label='GFAS', alpha = 0.9,color = 'firebrick')#firebrick
     ax2.bar(2.4,np.array(weekly_mean_GFED).sum() , width = 0.6,label='GFED', color = 'maroon')
     ax2.set_xticks([0,1,2,3])
@@ -509,7 +519,9 @@ def plot_CO_GFAS_GFED_posterior_prior(savepath, savename, weekly_mean_GFAS, week
     ax2.yaxis.set_label_position("right")
     ax2.yaxis.tick_right()
     ax2.set_ylabel('total CO emission [TgC/month]')
-    ax2.set_ylim((0,2))#6.7))
+    max = np.array([np.array(prior).sum(),posterior.sum(),np.array(weekly_mean_GFAS).sum(),np.array(weekly_mean_GFED).sum()]).max()
+    ax2.set_ylim((0,max+0.05*max))#85))
+    #ax2.set_ylim((0,4))#6.7))
 
     #ax2.legend()
     #ax.legend()
@@ -573,42 +585,75 @@ def calculate_and_plot_total_emission_no_mask_GFED_GFAS_prior_posterior_CO_and_C
     return 
 
 
-def calculate_and_plot_total_emission_with_mask_GFAS_GFED_posterior_prior_CO_and_CO2(savepath, alphaCO, alphaCO2, datapathmask, name_mask, threshold):
+def calculate_and_plot_total_emission_with_mask_GFAS_GFED_posterior_prior_CO_and_CO2(savepath, alphaCO, alphaCO2, total_area_masked_region, datapathmask, name_mask, threshold,savename_add_on = ''):
 
     #posterior
-    post_CO_fire, post_CO_bio, post_CO2_fire, post_CO2_bio = calculate_total_weekly_emissions_with_mask(threshold,alphaCO2, alphaCO,datapathmask,name_mask)
+    post_CO_fire, post_CO_bio, post_CO2_fire, post_CO2_bio = calculate_total_weekly_emissions_with_mask(threshold,alphaCO2, alphaCO,total_area_masked_region,datapathmask,name_mask)
     #prior
-    prior_CO_fire, prior_CO_bio, prior_CO2_fire, prior_CO2_bio = calculate_total_prior_weekly_emissions_with_mask(threshold,alphaCO2, alphaCO,datapathmask,name_mask)
+    prior_CO_fire, prior_CO_bio, prior_CO2_fire, prior_CO2_bio = calculate_total_prior_weekly_emissions_with_mask(threshold,alphaCO2, alphaCO,total_area_masked_region,datapathmask,name_mask)
     
-    CO_weekly_GFED = multiply_masks_with_GFED(savepath,'1.00e-02_CO2_2.12e+00_CO_mask_ak_threshold_'+str(threshold)+'_week_',2019,12, 'CO',GFED_CO, mask_monthly = False,just_land_mask = False)
-    CO2_weekly_GFED = multiply_masks_with_GFED(savepath,'1.00e-02_CO2_2.12e+00_CO_mask_ak_threshold_'+str(threshold)+'_week_',2019,12, 'CO2',GFED_CO2, mask_monthly = False,just_land_mask = False)
+    CO_weekly_GFED = multiply_masks_with_GFED(datapathmask,total_area_masked_region,name_mask,2019,12, 'CO',GFED_CO, mask_monthly = False,just_land_mask = False)
+    CO2_weekly_GFED = multiply_masks_with_GFED(datapathmask,total_area_masked_region,name_mask,2019,12, 'CO2',GFED_CO2, mask_monthly = False,just_land_mask = False)
 
-    CO_weekly_GFAS = multiply_masks_with_GFAS(savepath,'1.00e-02_CO2_2.12e+00_CO_mask_ak_threshold_'+str(threshold)+'_week_', 2019,12,'CO', GFAS_CO, just_land_mask = False)
-    CO2_weekly_GFAS = multiply_masks_with_GFAS(savepath,'1.00e-02_CO2_2.12e+00_CO_mask_ak_threshold_'+str(threshold)+'_week_', 2019, 12, 'CO2',GFAS_CO2, just_land_mask = False)
+    CO_weekly_GFAS = multiply_masks_with_GFAS(datapathmask,total_area_masked_region,name_mask, 2019,12,'CO', GFAS_CO, just_land_mask = False)
+    CO2_weekly_GFAS = multiply_masks_with_GFAS(datapathmask,total_area_masked_region,name_mask, 2019, 12, 'CO2',GFAS_CO2, just_land_mask = False)
 
     # Plot CO 
-    plot_CO_GFAS_GFED_posterior_prior(savepath,str("{:.2e}".format(alphaCO2))+'_'+str("{:.2e}".format(alphaCO))+'_CO_CO_fluxes_posterior_GFAS_GFED_masked_weekly_fire_'+str(threshold)+'.png',CO_weekly_GFAS, CO_weekly_GFED, np.array(post_CO_fire), np.array(prior_CO_fire))
+    plot_CO_GFAS_GFED_posterior_prior(savepath,str("{:.2e}".format(alphaCO2))+'_'+str("{:.2e}".format(alphaCO))+'_CO_CO_fluxes_posterior_GFAS_GFED_masked_weekly_considering_mask_area_fire_'+str(threshold)+savename_add_on+'.png',CO_weekly_GFAS, CO_weekly_GFED, np.array(post_CO_fire), np.array(prior_CO_fire))
 
     # Plot CO2 
-    plot_CO2_GFAS_GFED_posterior_prior(savepath,str("{:.2e}".format(alphaCO2))+'_'+str("{:.2e}".format(alphaCO))+'_CO_CO2_fluxes_posterior_GFAS_GFED_masked_weekly_fire_'+str(threshold)+'.png',CO2_weekly_GFAS, CO2_weekly_GFED, np.array(post_CO2_fire), np.array(prior_CO2_fire))
+    plot_CO2_GFAS_GFED_posterior_prior(savepath,str("{:.2e}".format(alphaCO2))+'_'+str("{:.2e}".format(alphaCO))+'_CO_CO2_fluxes_posterior_GFAS_GFED_masked_weekly_considering_mask_area_fire_'+str(threshold)+savename_add_on+'.png',CO2_weekly_GFAS, CO2_weekly_GFED, np.array(post_CO2_fire), np.array(prior_CO2_fire))
 
+def create_mask_ak_based_uncoupled(alphaCO, alphaCO2, savepath, datapathCO,datapathCO2, week, mask_threshold, co_threshold = 0):
 
+    akco = xr.open_dataset(datapathCO+str("{:e}".format(alphaCO))+'_CO_ak_CO_spatially_week_'+str(week)+'.nc')  #str("{:e}".format(alpha))+'_CO_ak_CO_spatially_week_'+str(week)+'.nc')
+    akco2 = xr.open_dataset(datapathCO2+str("{:e}".format(alphaCO))+'_CO2_ak_CO2_spatially_week_'+str(week)+'.nc')#str("{:.2e}".format(alphaCO2))+'1.00e-02_CO2_2.12e+00_CO_ak_spatial__CO_fire_.png')#str("{:e}".format(alpha))+'_CO2_ak_CO2_spatially_week_'+str(week)+'.nc')
+    
+    co_spatial_results = xr.open_dataset(datapathCO+str("{:e}".format(alphaCO))+'_CO_spatial_results_week_'+str(week)+'.nc') 
+
+    ds_co_mask = xr.where((akco2>mask_threshold)&(akco>mask_threshold)&(co_spatial_results>co_threshold), 1, False)
+    ds_co_mask.to_netcdf(savepath+str("{:.2e}".format(alphaCO2))+'_CO2_'+str("{:.2e}".format(alphaCO))+'_CO_mask_ak_threshold_'+str(mask_threshold)+'and_co_5e-1_week_'+str(week)+'.nc')
+
+    return ds_co_mask
 
 
 ############### Modify stuff from here on  ##################
-savepath = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/Images_coupled_Inversion/everything_splitted_first_correlation_setup_weekly_inversion/CO_like_CO2_prior/2_reg_params_coupled/CO2_100_CO_100/CO2_1_CO_1/Corr_0.7/total_emissions/'
+savepath = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/Images_coupled_Inversion/everything_splitted_first_correlation_setup_weekly_inversion/CO_like_CO2_prior/2_reg_params_coupled/CO2_100_CO_100/CO2_1_CO_1/Corr_0.7/total_emissions/'#'/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/Images/Ecoregions_split_4/flat_error_area_scaled/total_emissions/'#'/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/Images_coupled_Inversion/everything_splitted_first_correlation_setup_weekly_inversion/CO_like_CO2_prior/2_reg_params_coupled/CO2_100_CO_100/CO2_1_CO_1/Corr_0.7/total_emissions/'
 datapath = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/Images_coupled_Inversion/everything_splitted_first_correlation_setup_weekly_inversion/CO_like_CO2_prior/2_reg_params_coupled/CO2_100_CO_100/CO2_1_CO_1/Corr_0.7/'
 GFED_CO = '/work/bb1170/RUN/b382105/Dataframes/GFEDs/GDF_CO_AU20192020_regr1x1.pkl'
 GFED_CO2 =  '/work/bb1170/RUN/b382105/Dataframes/GFEDs/GDF_CO2_AU20192020_regr1x1.pkl'
 GFAS_CO = '/work/bb1170/RUN/b382105/Dataframes/GFAS/GDF_CO_Test2_GFAS_AU_2019_2020.pkl'
 GFAS_CO2 = '/work/bb1170/RUN/b382105/Dataframes/GFAS/GDF_Test2_GFAS_AU_2009_2020.pkl'
-alphaCO = 2.12
-alphaCO2 = 1e-2
-threshold = 0.05
+alphaCO = 2.12#2.12#3e-2#2.12
+alphaCO2 = 1e-2#1e-2#3e-2#1e-2
+threshold_list = [1e-3,0.05,0.1,0.2,0.3,0.5,0.6]
+co_threshold = 0.5
+datapathCO = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/Images_CO/Setup_gridded/test/'
+datapathCO2 = datapath#'/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/Images/Ecoregions_split_4/flat_error_area_scaled/'
 
+selected_regions_area = [9.81395187e+09, 3.95111921e+10, 3.18183296e+10,
+                                5.52121748e+10, 5.55915961e+10, 5.41460509e+10, 4.29887311e+10,
+                                3.13764949e+10, 1.05335427e+10, 9.31980461e+10, 5.11758810e+10,
+                                4.00158388e+10, 2.99495636e+10, 3.91250878e+10, 4.90667320e+10,
+                                1.54614599e+11, 9.65077342e+10, 6.07622615e+10, 6.98377101e+10,
+                                1.77802351e+11, 1.95969571e+11] # with 19 and 23
+area_entire_australia = 7692024*10**6
 #calculate_and_plot_total_emission_no_mask_GFED_GFAS_prior_posterior_CO_and_CO2(savepath, alphaCO, alphaCO2)
+'''
+for threshold in threshold_list:
+    for week in [48,49,50,51,52,1]:
+        if not os.path.isfile(savepath+str("{:.2e}".format(alphaCO2))+'_CO2_'+str("{:.2e}".format(alphaCO))+'_CO_mask_ak_threshold_'+str(threshold)+'_week_'+str(week)+'.nc'):
+            #coupled:
+            #create_mask_ak_based(alphaCO, alphaCO2, savepath, datapath_ak = datapath+str(week)+'/',week =  week, mask_threshold = threshold, ak_save_name_CO='ak_spatial__CO_fire_', ak_save_name_CO2='ak_spatial__CO2_fire_' )
+            #uncoupled:
+            create_mask_ak_based_uncoupled(alphaCO, alphaCO2, savepath, datapathCO, datapathCO2, week =  week, mask_threshold = threshold, co_threshold = co_threshold)
+'''
+mask = xr.open_dataset('/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/Images_coupled_Inversion/everything_splitted_first_correlation_setup_weekly_inversion/CO_like_CO2_prior/2_reg_params_coupled/CO2_100_CO_100/CO2_1_CO_1/Corr_0.7/48/input_mask_masked.nc')
+mask = mask.rename({'bioclass': '__xarray_dataarray_variable__'})
+mask.to_netcdf('/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/Images_coupled_Inversion/everything_splitted_first_correlation_setup_weekly_inversion/CO_like_CO2_prior/2_reg_params_coupled/CO2_100_CO_100/CO2_1_CO_1/Corr_0.7/48/input_mask_masked_with_dataarray_variable.nc',)
+## at the moment the same mask per week implemented - use another one by changing in the functions the mask name ith + week
 for week in [48,49,50,51,52,1]:
-    create_mask_ak_based(alphaCO, alphaCO2, savepath, datapath_ak = datapath+str(week)+'/',week =  week, mask_threshold = threshold, ak_save_name_CO='ak_spatial__CO_fire_', ak_save_name_CO2='ak_spatial__CO2_fire_' )
+    calculate_and_plot_total_emission_with_mask_GFAS_GFED_posterior_prior_CO_and_CO2(savepath, alphaCO, alphaCO2, np.array(selected_regions_area).sum(),'/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/Images_coupled_Inversion/everything_splitted_first_correlation_setup_weekly_inversion/CO_like_CO2_prior/2_reg_params_coupled/CO2_100_CO_100/CO2_1_CO_1/Corr_0.7/48/', 'input_mask_masked_with_dataarray_variable.nc', 0)
+#calculate_and_plot_total_emission_with_mask_GFAS_GFED_posterior_prior_CO_and_CO2(savepath, alphaCO, alphaCO2, savepath, '3.00e-02_CO2_3.00e-02_CO_mask_ak_threshold_'+str(threshold)+'and_co_5e-1_week_', threshold, savename_add_on = '_CO_thresh_5e-1_')
 
-calculate_and_plot_total_emission_with_mask_GFAS_GFED_posterior_prior_CO_and_CO2(savepath, alphaCO, alphaCO2, savepath, '1.00e-02_CO2_2.12e+00_CO_mask_ak_threshold_'+str(threshold)+'_week_', threshold)
 
