@@ -252,7 +252,7 @@ def multiply_masks_with_GFAS(datapathmasks,masked_area,name_mask, year, month, m
         weekly_mean_values.append(maskedGFAS.sum()*(2*24*60*60)*random_factor)
     return weekly_mean_values
 
-def plot_CO2_GFAS_GFED_posterior_prior(savepath, savename,weekly_mean_GFAS, weekly_mean_GFED, posterior, prior, masked_area):
+def plot_CO2_GFAS_GFED_posterior_prior(savepath, savename,weekly_mean_GFAS, weekly_mean_GFED, posterior, prior, masked_area, prior_error, post_error):
     weeks = [48,49,50,51,52,53] 
     plt.rcParams.update({'font.size':18})   
     fig, ax = plt.subplot_mosaic([['lh', 'r'],['lb', 'r']],  gridspec_kw={'width_ratios': [5,1],'height_ratios':[5,1], 'hspace' : 0}, figsize = (10,6), constrained_layout = True)
@@ -264,9 +264,12 @@ def plot_CO2_GFAS_GFED_posterior_prior(savepath, savename,weekly_mean_GFAS, week
                         hspace=0.4)
 
     ax['lh'].plot(weeks, prior,color = 'orange')# orange
+    ax['lh'].errorbar(weeks, prior, yerr = prior_error, marker = 'o', capthick=2, capsize=4,color = 'orange')
     ax['lh'].plot(weeks, posterior,color = 'coral')#,label='Posterior')# darkorange
-    ax['lh'].plot(weeks, weekly_mean_GFAS,alpha = 0.9, color = 'firebrick')#, label ='GFAS')# orangered
-    ax['lh'].plot(weeks, weekly_mean_GFED, color = 'maroon')# firebrick
+    ax['lh'].errorbar(weeks, posterior, yerr = post_error, marker = 'o', capthick=2, capsize=4,color = 'coral')
+    ax['lh'].plot(weeks, weekly_mean_GFAS,alpha = 0.9, marker = 'o',color = 'firebrick')#, label ='GFAS')# orangered
+    ax['lh'].plot(weeks, weekly_mean_GFED, marker = 'o',color = 'maroon')# firebrick
+    ax['lh'].set_ylim((-31,53))
     #ax.plot(weeks, GFAS_weekly_data,label = 'GFAS total', color = 'grey')
 
     ax['lb'].bar(weeks, np.array(masked_area)/(7692024*10**6)*100, color = 'slategray', width = 0.6)
@@ -277,7 +280,11 @@ def plot_CO2_GFAS_GFED_posterior_prior(savepath, savename,weekly_mean_GFAS, week
     ax['lh'].set_ylabel(f'CO$_2$ emission [TgC/week]')
 
     ax['r'].bar(0.6, np.array(prior).sum(),width = 0.6, label = 'Prior',color = 'orange')
+    eb = ax['r'].errorbar(0.6, np.array(prior).sum(), yerr = np.array(prior_error).sum()/10,linestyle = 'dashed',marker = 'o', capthick=3, capsize=4,color = 'k')
+    eb[-1][0].set_linestyle('--')
     ax['r'].bar(1.2,posterior.sum(), width = 0.6,label='Posterior', color = 'coral')
+    eb2 = ax['r'].errorbar(1.2, np.array(posterior).sum(), yerr = np.array(post_error).sum()/10,marker = 'o', capthick=3, capsize=4, color = 'k')
+    eb2[-1][0].set_linestyle('--')
     ax['r'].bar(1.8,np.array(weekly_mean_GFAS).sum() , width = 0.6,label='GFAS', alpha = 0.9,color = 'firebrick')#firebrick
     ax['r'].bar(2.4,np.array(weekly_mean_GFED).sum() , width = 0.6,label='GFED', color = 'maroon')
     ax['r'].set_xticks([0,1,2,3])
@@ -294,7 +301,7 @@ def plot_CO2_GFAS_GFED_posterior_prior(savepath, savename,weekly_mean_GFAS, week
     plt.show()
     fig.savefig(savepath+savename, facecolor = 'w', dpi = 300)
 
-def plot_CO_GFAS_GFED_posterior_prior(savepath, savename, weekly_mean_GFAS, weekly_mean_GFED, posterior, prior, masked_area):
+def plot_CO_GFAS_GFED_posterior_prior(savepath, savename, weekly_mean_GFAS, weekly_mean_GFED, posterior, prior, masked_area, prior_error, post_error):
     weeks = [48,49,50,51,52,53] 
     plt.rcParams.update({'font.size':18})   
     fig,ax = plt.subplot_mosaic([['lh', 'r'],['lb', 'r']],  gridspec_kw={'width_ratios': [5,1],'height_ratios':[5,1], 'hspace' : 0}, figsize = (10,6), constrained_layout = True)
@@ -306,9 +313,12 @@ def plot_CO_GFAS_GFED_posterior_prior(savepath, savename, weekly_mean_GFAS, week
                         hspace=0.4)
 
     ax['lh'].plot(weeks, prior,color = 'orange')# orange
+    ax['lh'].errorbar(weeks, prior, yerr = prior_error, marker = 'o', capthick=2, capsize=4,color = 'orange')
     ax['lh'].plot(weeks, posterior,color = 'coral')#,label='Posterior')# darkorange
-    ax['lh'].plot(weeks, weekly_mean_GFAS,alpha = 0.9, color = 'firebrick')#, label ='GFAS')# orangered
-    ax['lh'].plot(weeks, weekly_mean_GFED, color = 'maroon')# firebrick
+    ax['lh'].errorbar(weeks, posterior, yerr = post_error, marker = 'o', capthick=2, capsize=4, color = 'coral')
+    ax['lh'].plot(weeks, weekly_mean_GFAS,alpha = 0.9, marker = 'o',  color = 'firebrick')#, label ='GFAS')# orangered
+    ax['lh'].plot(weeks, weekly_mean_GFED, marker = 'o', color = 'maroon')# firebrick
+    ax['lh'].set_ylim((-4.1,6))
     #ax.plot(weeks, GFAS_weekly_data,label = 'GFAS total', color = 'grey')
 
     ax['lh'].set_xticks([48, 49, 50, 51, 52, 53])
@@ -322,7 +332,10 @@ def plot_CO_GFAS_GFED_posterior_prior(savepath, savename, weekly_mean_GFAS, week
     ax['lb'].set_ylabel('area [%]')
 
     ax['r'].bar(0.6, np.array(prior).sum(),width = 0.6, label = 'Prior',color = 'orange')
+    eb = ax['r'].errorbar(0.6, np.array(prior).sum(), yerr = np.array(prior_error).sum()/10,linestyle = 'dashed',marker = 'o', capthick=3, capsize=4,color = 'k')
+    eb[-1][0].set_linestyle('--')
     ax['r'].bar(1.2,posterior.sum(), width = 0.6,label='Posterior', color = 'coral')
+    ax['r'].errorbar(1.2, np.array(posterior).sum(), yerr = np.array(post_error).sum(),marker = 'o', capthick=3, capsize=4, color = 'k')
     ax['r'].bar(1.8,np.array(weekly_mean_GFAS).sum() , width = 0.6,label='GFAS', alpha = 0.9,color = 'firebrick')#firebrick
     ax['r'].bar(2.4,np.array(weekly_mean_GFED).sum() , width = 0.6,label='GFED', color = 'maroon')
     ax['r'].set_xticks([0,1,2,3])
@@ -331,7 +344,7 @@ def plot_CO_GFAS_GFED_posterior_prior(savepath, savename, weekly_mean_GFAS, week
     ax['r'].yaxis.tick_right()
     ax['r'].set_ylabel('total CO emission [TgC/month]')
     max = np.array([np.array(prior).sum(),posterior.sum(),np.array(weekly_mean_GFAS).sum(),np.array(weekly_mean_GFED).sum()]).max()
-    ax['r'].set_ylim((0,max+0.05*max))#85))
+    ax['r'].set_ylim((0,max+0.1*max))#85))
     #ax2.set_ylim((0,4))#6.7))
 
     #ax2.legend()
@@ -382,5 +395,31 @@ GFED_weekly_CO2 = multiply_masks_with_GFED(datapathmask,masked_area, name_mask, 
 GFED_weekly_CO = multiply_masks_with_GFED(datapathmask,masked_area, name_mask, 2019, 12, 'CO', GFED_CO, mask_monthly = False,just_land_mask = False)
 GFAS_weekly_CO = multiply_masks_with_GFAS(datapathmask,masked_area,name_mask, 2019, 12, 'CO', GFAS_CO, just_land_mask = False)
 
-plot_CO_GFAS_GFED_posterior_prior(savepath_CO, 'Comparison_CO_GFED_GFAS_PRIOR_POSTERIOR_areas_considered.png', GFAS_weekly_CO, GFED_weekly_CO, CO_posterior, CO_prior, masked_area)
-plot_CO2_GFAS_GFED_posterior_prior(savepath_CO2, 'Comparison_CO2_GFED_GFAS_PRIOR_POSTERIOR_areas_considered.png', GFAS_weekly_CO2, GFED_weekly_CO2, CO2_posterior, CO2_prior, masked_area)
+# for every week masked for region numbers: 
+CO_prior_errors_weekly = []
+CO_posterior_errors_weekly = []
+CO2_prior_errors_weekly = []
+CO2_posterior_errors_weekly = []
+for idx, week in enumerate([48,49,50,51,52,1]): 
+    if week == 48: 
+        days = 1
+    elif week == 1:
+        days = 2
+    else: days = 7
+    errors = pd.read_pickle(datapath+str(week)+'/1.00e-02_CO2_2.12e+00_CO_predictions.pkl')
+    prior_errors = np.sqrt(errors['prior_err_cov'])*errors['prior_flux_eco']
+    prior_errors = prior_errors.drop([19,23,73,77])
+
+    CO2_prior_errors_weekly.append(prior_errors[5:24].mean()*12*10**(-12)*24*60*60*days*masked_area[idx]*10**(-6))
+    CO_prior_errors_weekly.append(prior_errors[56:76].sum()*12*10**(-12)*24*60*60*days*masked_area[idx]*10**(-9))
+    posterior_errors = errors['posterior_err_std']*errors['prior_flux_eco']
+    CO2_posterior_errors_weekly.append(posterior_errors[5:24].mean()*12*10**(-12)*24*60*60*days*masked_area[idx]*10**(-6))
+    CO_posterior_errors_weekly.append(posterior_errors[56:76].mean()*12*10**(-12)*24*60*60*days*masked_area[idx]*10**(-9))
+print(CO2_prior_errors_weekly)
+print(CO_posterior_errors_weekly)
+print(CO_prior_errors_weekly)
+
+plot_CO_GFAS_GFED_posterior_prior(savepath_CO, 'Comparison_CO_GFED_GFAS_PRIOR_POSTERIOR_areas_considered.png', GFAS_weekly_CO, GFED_weekly_CO, CO_posterior, CO_prior, 
+                                  masked_area, CO_prior_errors_weekly, CO_posterior_errors_weekly)
+plot_CO2_GFAS_GFED_posterior_prior(savepath_CO2, 'Comparison_CO2_GFED_GFAS_PRIOR_POSTERIOR_areas_considered.png', GFAS_weekly_CO2, GFED_weekly_CO2, CO2_posterior, CO2_prior,
+                                    masked_area, CO2_prior_errors_weekly, CO2_posterior_errors_weekly)
