@@ -48,24 +48,32 @@ def split_predictions_and_flux_and_priors():
     flux_list_grid = [fluxCO2_fire_grid, fluxCO2_bio_grid, fluxCO_fire_grid, fluxCO_bio_grid]
     name_list_grid = ['CO2_fire_grid', 'CO2_ant_bio_grid', 'CO_fire_grid', 'CO_ant_bio_grid']  
 
-def plot_spatial_prior_and_posterior_results():
+    return flux_list_grid, name_list_grid, flux_list, name_list, post_std_list, prior_std_list, predictions_list
+
+
+def plot_spatial_prior_and_prior_errors(flux_list, name_list, flux_list_grid, name_list_grid, prior_std_list, l, lCO, without_errors, with_errors):
     print('Plotting prior spatially')
-    plot_prior_spatially(Inversion, flux_list[idx],name_list[idx], idx, savepath)
-    plot_prior_spatially(Inversion, flux_list_grid[idx],name_list_grid[idx], idx,savepath, False)
+    if without_errors == True: 
+        plot_prior_spatially(Inversion, flux_list[idx],name_list[idx], idx, savepath)
+        plot_prior_spatially(Inversion, flux_list_grid[idx],name_list_grid[idx], idx,savepath, False)
+    if with_errors == True: 
+        plot_spatial_result(Inversion.map_on_grid(prior_std_list[idx]), savepath, str("{:.2e}".format(l))+"_CO2_"+"{:.2e}".format(lCO)+'_CO_prior_std_'+name_list[idx]+'.png', 'pink_r', vmax =None, vmin =0, 
+                        cbar_kwargs = {'shrink':  0.835, 'label' : r'prior standard deviation'}, norm = None )
+        
+def plot_spatial_posterior_and_posterior_errors(predictions, flux_list, name_list, l, lCO, post_std_list, without_errors, with_errors):
+    if without_errors == True: 
+        print('Plotting spatial difference of results to prior')
+        plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion, predictions, flux_list[idx], name_list[idx],idx, l,lCO, diff =False)
+        
+        print('Plotting spatial results')
+        plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion, predictions, flux_list[idx], name_list[idx],idx, l,lCO, diff =True)
+    if with_errors == True: 
+        print('Plot posterior std deviation')
+        plot_spatial_result(Inversion.map_on_grid(post_std_list[idx]), savepath, str("{:.2e}".format(l))+"_CO2_"+"{:.2e}".format(lCO)+'_CO_post_std_'+name_list[idx]+'.png', 'pink_r', vmax =None, vmin =0, 
+                            cbar_kwargs = {'shrink':  0.835, 'label' : r'posterior standard deviation'}, norm = None)
 
-    print('Plotting spatial difference of results to prior')
-    plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion, predictions, flux_list[idx], name_list[idx],idx, l,lCO, diff =False)
-    plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion, predictions, flux_list[idx], name_list[idx]+'_45_',idx, l,lCO, vmin = -45, vmax = 45, diff =False)
-    
-    print('Plotting spatial results')
-    plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion, predictions, flux_list[idx], name_list[idx],idx, l,lCO, diff =True)
 
-def plot_prior_and_posterior_errors():
-    print('Plot posterior std deviation')
-    plot_spatial_result(Inversion.map_on_grid(post_std_list[idx]), savepath, str("{:.2e}".format(l))+"_CO2_"+"{:.2e}".format(lCO)+'_CO_post_std_'+name_list[idx]+'.png', 'pink_r', vmax =0.5, vmin =0, 
-                        cbar_kwargs = {'shrink':  0.835, 'label' : r'posterior standard deviation'}, norm = None)
-    plot_spatial_result(Inversion.map_on_grid(prior_std_list[idx]), savepath, str("{:.2e}".format(l))+"_CO2_"+"{:.2e}".format(lCO)+'_CO_prior_std_'+name_list[idx]+'.png', 'pink_r', vmax =None, vmin =0, 
-                    cbar_kwargs = {'shrink':  0.835, 'label' : r'prior standard deviation'}, norm = None )
+def plot_uncertainty_reduction(post_std_list, prior_std_list, name_list, lCO, l):
     print('Plot uncertainty reduction')
     plot_spatial_result(Inversion.map_on_grid((prior_std_list[idx]-post_std_list[idx])/prior_std_list[idx]), savepath,
                             str("{:.2e}".format(l))+"_CO2_"+"{:.2e}".format(lCO)+'_CO_uncertainty_reduction_'+name_list[idx]+'.png', 'bone_r', vmax =1, vmin = -0,
@@ -74,35 +82,36 @@ def plot_prior_and_posterior_errors():
                             str("{:.2e}".format(l))+"_CO2_"+"{:.2e}".format(lCO)+'_CO_uncertainty_reduction_zero_enforced_'+name_list[idx]+'.png', 'bone_r', vmax =1, vmin = 0,
                         cbar_kwargs = {'shrink':  0.835, 'label' : r'uncertainty reduction'}, norm = None)
 
-def plot_emission_ratio_and_errors(): 
-    
+def plot_emission_ratio_and_errors(predictions_list, post_std_list, fluxCO2_fire, fluxCO_fire, flux_list, l, lCO,with_errors, without_errors): 
     print('Plot emission ratio and errors')
-       
-    plot_emission_ratio(savepath, Inversion, predictions_list[0], predictions_list[2], l,lCO, fluxCO2_fire, fluxCO_fire)   
+    if without_errors == True:        
+        plot_emission_ratio(savepath, Inversion, predictions_list[0], predictions_list[2], l,lCO, fluxCO2_fire, fluxCO_fire)   
 
-    ratio_err = calculate_ratio_error(post_std_list[0], post_std_list[2], predictions_list[0], predictions_list[2])
+    if with_errors == True: 
+        ratio_err = calculate_ratio_error(post_std_list[0], post_std_list[2], predictions_list[0], predictions_list[2])
+        plot_spatial_result(Inversion.map_on_grid(ratio_err), savepath,
+                                    str("{:.2e}".format(l))+"_CO2_"+"{:.2e}".format(lCO)+'_CO_ratio_err_'+str(Inversion.week)+'.png', 'pink_r', vmax =None, vmin =0, 
+                                cbar_kwargs = {'shrink':  0.835, 'label' : r'$standard deviation'}, norm = None)
+        plot_spatial_result(Inversion.map_on_grid(ratio_err), savepath,
+                                    str("{:.2e}".format(l))+"_CO2_"+"{:.2e}".format(lCO)+'_CO_ratio_err_cbar_cut_'+str(Inversion.week)+'.png', 'pink_r', vmax =5, vmin =0, 
+                                cbar_kwargs = {'shrink':  0.835, 'label' : r'standard deviation'}, norm = None)
+        plot_spatial_result(Inversion.map_on_grid(ratio_err*flux_list[0]/flux_list[2]*44/28), savepath,
+                                    str("{:.2e}".format(l))+"_CO2_"+"{:.2e}".format(lCO)+'_CO_ratio_err_flux_cbar_cut_'+str(Inversion.week)+'.png', 'pink_r', vmax =140, vmin =0, 
+                                cbar_kwargs = {'shrink':  0.835, 'label' : r'standard deviation [gCO$_2$/gCO]'}, norm = None)
+    
 
-    plot_spatial_result(Inversion.map_on_grid(ratio_err), savepath,
-                                str("{:.2e}".format(l))+"_CO2_"+"{:.2e}".format(lCO)+'_CO_ratio_err_'+str(Inversion.week)+'.png', 'pink_r', vmax =None, vmin =0, 
-                            cbar_kwargs = {'shrink':  0.835, 'label' : r'$standard deviation'}, norm = None)
-    plot_spatial_result(Inversion.map_on_grid(ratio_err), savepath,
-                                str("{:.2e}".format(l))+"_CO2_"+"{:.2e}".format(lCO)+'_CO_ratio_err_cbar_cut_'+str(Inversion.week)+'.png', 'pink_r', vmax =5, vmin =0, 
-                            cbar_kwargs = {'shrink':  0.835, 'label' : r'standard deviation'}, norm = None)
-    plot_spatial_result(Inversion.map_on_grid(ratio_err*flux_list[0]/flux_list[2]*44/28), savepath,
-                                str("{:.2e}".format(l))+"_CO2_"+"{:.2e}".format(lCO)+'_CO_ratio_err_flux_cbar_cut_'+str(Inversion.week)+'.png', 'pink_r', vmax =140, vmin =0, 
-                            cbar_kwargs = {'shrink':  0.835, 'label' : r'standard deviation [gCO$_2$/gCO]'}, norm = None)
- 
-
-def plot_concentrations(): 
+def plot_concentrations(l, lCO, prior_std, without_errors, with_errors): 
     print('Plotting concentrations')
-    total_CO2, total_CO = plot_single_concentrations(Inversion, l,lCO, savepath)
-    CO2, CO = plot_single_total_concentrations(Inversion,l, lCO, savepath)
-    plot_single_concentrations_measurements_and_errors(Inversion, savepath, l, lCO,prior_std)
-    plot_difference_of_posterior_concentrations_to_measurements(Inversion, savepath,l, lCO)   
+    if without_errors == True: 
+        total_CO2, total_CO = plot_single_concentrations(Inversion, l,lCO, savepath)
+        CO2, CO = plot_single_total_concentrations(Inversion,l, lCO, savepath)
+    if with_errors == True: 
+        plot_single_concentrations_measurements_and_errors(Inversion, savepath, l, lCO,prior_std)
+        plot_difference_of_posterior_concentrations_to_measurements(Inversion, savepath,l, lCO)   
 
 
-def do_everything(savepath, Inversion, mask_datapath_and_name, alpha_CO2, alpha_CO, plot_spatial_results,
-                                plot_spatial_posterior_errors, plot_spatial_prior ,plot_spatial_prior_errors , plot_spatial_emission_ratio , 
+def do_everything(savepath, Inversion, mask_datapath_and_name, alpha_CO2, alpha_CO, plot_spatial_input_mask, plot_spatial_results,
+                                plot_spatial_posterior_errors, plot_spatial_prior ,plot_spatial_prior_errors , plot_uncertainty_reduction, plot_spatial_emission_ratio , 
                                 plot_spatial_emission_ratio_errors , plot_spatial_averaging_kernel , plot_concentrations_with_errors ,
                                 plot_concentrations_without_errors ,save_prediction_pkl , save_l_curve_information):
     '''
@@ -117,8 +126,11 @@ def do_everything(savepath, Inversion, mask_datapath_and_name, alpha_CO2, alpha_
     alpha_CO :                  CO regularization parameter 
 
     '''
-    class_num = plot_input_mask(savepath,mask_datapath_and_name)
     Inversion.fit(alpha = 1, xerr = Inversion.flux_errs_flat)
+    
+    if plot_spatial_input_mask == True: 
+        class_num = plot_input_mask(savepath,mask_datapath_and_name)
+
 
     for l in [alpha_CO2]:
         #savepath = savepath2 + 'CO2_' + str("{:.2e}".format(l)) + '/'
@@ -136,14 +148,16 @@ def do_everything(savepath, Inversion, mask_datapath_and_name, alpha_CO2, alpha_
 
             # save predictions
             #Inversion.predictions_errs.to_netcdf(savepath +str("{:.2e}".format(l))+"_CO2_"+"{:.2e}".format(lCO)+'_CO_posterior_cov_matrix.nc')
-    
-            pred = pd.DataFrame(data =Inversion.predictions_flat.values, columns = ['predictions'])
-            pred.insert(loc = 1, column = 'prior_flux_eco', value = Inversion.flux_eco[:,Inversion.flux_eco.week == Inversion.week].squeeze())
-            pred.insert(loc = 1, column ='posterior_err_std', value = Inversion.prediction_errs_flat.values)
+            if save_prediction_pkl == True: 
+                save_predictions(savepath, l, lCO)
+            flux_list_grid, name_list_grid, flux_list, name_list, post_std_list, prior_std_list, predictions_list = split_predictions_and_flux_and_priors()
+            #pred = pd.DataFrame(data =Inversion.predictions_flat.values, columns = ['predictions'])
+            #pred.insert(loc = 1, column = 'prior_flux_eco', value = Inversion.flux_eco[:,Inversion.flux_eco.week == Inversion.week].squeeze())
+            #pred.insert(loc = 1, column ='posterior_err_std', value = Inversion.prediction_errs_flat.values)
             #pred.insert(loc=1, column = 'posterior_cov', value = Inversion.prediction_errs.values)
-            pred.insert(loc = 1, column ='prior_err_cov', value = np.diagonal(Inversion.flux_errs_flat.values))
-            pred.insert(loc = 1, column ='prior_err_std_with_lambda', value = np.sqrt(np.diagonal(Inversion.flux_errs_flat.values*reg)))# STIMMT VLLT NICHT!!!!!!!!!!!!!!!!!!! reg
-            pred.to_pickle(savepath + str("{:.2e}".format(l))+"_CO2_"+"{:.2e}".format(lCO)+'_CO_predictions.pkl')
+            #pred.insert(loc = 1, column ='prior_err_cov', value = np.diagonal(Inversion.flux_errs_flat.values))
+            #pred.insert(loc = 1, column ='prior_err_std_with_lambda', value = np.sqrt(np.diagonal(Inversion.flux_errs_flat.values*reg)))# STIMMT VLLT NICHT!!!!!!!!!!!!!!!!!!! reg
+            #pred.to_pickle(savepath + str("{:.2e}".format(l))+"_CO2_"+"{:.2e}".format(lCO)+'_CO_predictions.pkl')
             
             Inversion.predictions_flat = Inversion.predictions_flat.rename(dict(new = 'bioclass'))
             #plot_l_curve(Inversion,err,molecule_name,savepath, l)
@@ -170,60 +184,24 @@ def do_everything(savepath, Inversion, mask_datapath_and_name, alpha_CO2, alpha_
         
 
             for idx,predictions in enumerate(predictions_list):
-                print('Plotting prior spatially')
-                plot_prior_spatially(Inversion, flux_list[idx],name_list[idx], idx, savepath)
-                plot_prior_spatially(Inversion, flux_list_grid[idx],name_list_grid[idx], idx,savepath, False)
+                plot_spatial_prior_and_prior_errors(flux_list, name_list, flux_list_grid, name_list_grid, prior_std_list, l, lCO, plot_spatial_prior, plot_spatial_prior_errors)
+                plot_spatial_posterior_and_posterior_errors(predictions, flux_list, name_list, l, lCO, post_std_list,plot_spatial_results, plot_spatial_posterior_errors)
 
-                print('Plotting spatial difference of results to prior')
-                plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion, predictions, flux_list[idx], name_list[idx],idx, l,lCO, diff =False)
-                plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion, predictions, flux_list[idx], name_list[idx]+'_45_',idx, l,lCO, vmin = -45, vmax = 45, diff =False)
+                if plot_uncertainty_reduction == True: 
+                    plot_spatial_result(Inversion.map_on_grid((prior_std_list[idx]-post_std_list[idx])/prior_std_list[idx]), savepath,
+                                            str("{:.2e}".format(l))+"_CO2_"+"{:.2e}".format(lCO)+'_CO_uncertainty_reduction_'+name_list[idx]+'.png', 'bone_r', vmax =1, vmin = -0,
+                                        cbar_kwargs = {'shrink':  0.835, 'label' : r'uncertainty reduction'}, norm = None)
+                    plot_spatial_result(Inversion.map_on_grid((prior_std_list[idx]-post_std_list[idx])/prior_std_list[idx]), savepath,
+                                            str("{:.2e}".format(l))+"_CO2_"+"{:.2e}".format(lCO)+'_CO_uncertainty_reduction_zero_enforced_'+name_list[idx]+'.png', 'bone_r', vmax =1, vmin = 0,
+                                        cbar_kwargs = {'shrink':  0.835, 'label' : r'uncertainty reduction'}, norm = None)
                 
-                print('Plotting spatial results')
-                plot_spatial_flux_results_or_diff_to_prior(savepath, Inversion, predictions, flux_list[idx], name_list[idx],idx, l,lCO, diff =True)
+            plot_emission_ratio_and_errors( predictions_list, post_std_list, fluxCO2_fire, fluxCO_fire, flux_list, l, lCO,with_errors = plot_spatial_emission_ratio_errors, without_errors = plot_spatial_emission_ratio) 
 
-                print('Plot posterior std deviation')
-                plot_spatial_result(Inversion.map_on_grid(post_std_list[idx]), savepath, str("{:.2e}".format(l))+"_CO2_"+"{:.2e}".format(lCO)+'_CO_post_std_'+name_list[idx]+'.png', 'pink_r', vmax =0.5, vmin =0, 
-                                    cbar_kwargs = {'shrink':  0.835, 'label' : r'posterior standard deviation'}, norm = None)
-                # flux: 
-                if idx>1:
-                    plot_spatial_result(Inversion.map_on_grid(post_std_list[idx]*flux_list[idx]*12*10**6), savepath, str("{:.2e}".format(l))+"_CO2_"+"{:.2e}".format(lCO)+'_CO_post_std_flux_1_max'+name_list[idx]+'_'+str(Inversion.week)+'.png', 'pink_r', vmax =0.8, vmin =0, 
-                                        cbar_kwargs = {'shrink':  0.835, 'label' : r'standard deviation [$\mu$gC m$^{-2}$s$^{-1}$]'}, norm = None)
-                else:
-                    plot_spatial_result(Inversion.map_on_grid(post_std_list[idx]*flux_list[idx]*12*10**6), savepath, str("{:.2e}".format(l))+"_CO2_"+"{:.2e}".format(lCO)+'_CO_post_std_flux_1_max'+name_list[idx]+'_'+str(Inversion.week)+'.png', 'pink_r', vmax =150, vmin =0, 
-                                        cbar_kwargs = {'shrink':  0.835, 'label' : r'standard deviation [$\mu$gC m$^{-2}$s$^{-1}$]'}, norm = None)
-           
-                plot_spatial_result(Inversion.map_on_grid(prior_std_list[idx]), savepath, str("{:.2e}".format(l))+"_CO2_"+"{:.2e}".format(lCO)+'_CO_prior_std_'+name_list[idx]+'.png', 'pink_r', vmax =None, vmin =0, 
-                                    cbar_kwargs = {'shrink':  0.835, 'label' : r'prior standard deviation'}, norm = None )
-
-                plot_spatial_result(Inversion.map_on_grid((prior_std_list[idx]-post_std_list[idx])/prior_std_list[idx]), savepath,
-                                        str("{:.2e}".format(l))+"_CO2_"+"{:.2e}".format(lCO)+'_CO_uncertainty_reduction_'+name_list[idx]+'.png', 'bone_r', vmax =1, vmin = -0,
-                                    cbar_kwargs = {'shrink':  0.835, 'label' : r'uncertainty reduction'}, norm = None)
-                plot_spatial_result(Inversion.map_on_grid((prior_std_list[idx]-post_std_list[idx])/prior_std_list[idx]), savepath,
-                                        str("{:.2e}".format(l))+"_CO2_"+"{:.2e}".format(lCO)+'_CO_uncertainty_reduction_zero_enforced_'+name_list[idx]+'.png', 'bone_r', vmax =1, vmin = 0,
-                                    cbar_kwargs = {'shrink':  0.835, 'label' : r'uncertainty reduction'}, norm = None)
-
-            
-            ratio_err = calculate_ratio_error(post_std_list[0], post_std_list[2], predictions_list[0], predictions_list[2])
-
-            plot_spatial_result(Inversion.map_on_grid(ratio_err), savepath,
-                                        str("{:.2e}".format(l))+"_CO2_"+"{:.2e}".format(lCO)+'_CO_ratio_err_'+str(Inversion.week)+'.png', 'pink_r', vmax =None, vmin =0, 
-                                   cbar_kwargs = {'shrink':  0.835, 'label' : r'$standard deviation'}, norm = None)
-            plot_spatial_result(Inversion.map_on_grid(ratio_err), savepath,
-                                        str("{:.2e}".format(l))+"_CO2_"+"{:.2e}".format(lCO)+'_CO_ratio_err_cbar_cut_'+str(Inversion.week)+'.png', 'pink_r', vmax =5, vmin =0, 
-                                    cbar_kwargs = {'shrink':  0.835, 'label' : r'standard deviation'}, norm = None)
-            plot_spatial_result(Inversion.map_on_grid(ratio_err*flux_list[0]/flux_list[2]*44/28), savepath,
-                                        str("{:.2e}".format(l))+"_CO2_"+"{:.2e}".format(lCO)+'_CO_ratio_err_flux_cbar_cut_'+str(Inversion.week)+'.png', 'pink_r', vmax =140, vmin =0, 
-                                    cbar_kwargs = {'shrink':  0.835, 'label' : r'standard deviation [gCO$_2$/gCO]'}, norm = None)
-            
-            calculate_and_plot_averaging_kernel(Inversion,savepath,l, lCO, Inversion.week) 
-            plot_emission_ratio(savepath, Inversion, predictions_list[0], predictions_list[2], l,lCO, fluxCO2_fire, fluxCO_fire)   
+            if plot_spatial_averaging_kernel == True: 
+                calculate_and_plot_averaging_kernel(Inversion,savepath,l, lCO, Inversion.week) 
    
-            print('Plotting concentrations')
-            total_CO2, total_CO = plot_single_concentrations(Inversion, l,lCO, savepath)
-            CO2, CO = plot_single_total_concentrations(Inversion,l, lCO, savepath)
-            plot_single_concentrations_measurements_and_errors(Inversion, savepath, l, lCO,prior_std)
-            plot_difference_of_posterior_concentrations_to_measurements(Inversion, savepath,l, lCO)   
-
+            if plot_concentrations == True: 
+                plot_concentrations(l, lCO, prior_std, without_errors = plot_concentrations_without_errors, with_errors = plot_concentrations_with_errors)
             #plot_l_curve(Inversion, molecule_name, savepath, l, err = None)
 
 #################################################### adapt from here on ####################################################################
@@ -254,11 +232,15 @@ alpha_list = [1e-2]
 alpha_listCO = [2.12]
 
 # plotting options. Set to False if it should not be printed/saved
+plot_spatial_input_mask = True
+
 plot_spatial_results = True
 plot_spatial_posterior_errors = True
 
 plot_spatial_prior = True
 plot_spatial_prior_errors = True
+
+plot_uncertainty_reduction = True
 
 plot_spatial_emission_ratio = True
 plot_spatial_emission_ratio_errors = True
@@ -334,7 +316,7 @@ for idx,week in enumerate(week_list):
                                 #    b = pickle.load(handle)
                                 
                                 # script to plot and save all results: 
-                                do_everything(savepath, Inversion, mask, alphaCO2, alphaCO, plot_spatial_results,
-                                plot_spatial_posterior_errors, plot_spatial_prior ,plot_spatial_prior_errors , plot_spatial_emission_ratio , 
+                                do_everything(savepath, Inversion, mask, alphaCO2, alphaCO, plot_spatial_input_mask, plot_spatial_results,
+                                plot_spatial_posterior_errors, plot_spatial_prior ,plot_spatial_prior_errors , plot_uncertainty_reduction, plot_spatial_emission_ratio , 
                                 plot_spatial_emission_ratio_errors , plot_spatial_averaging_kernel , plot_concentrations_with_errors ,
                                 plot_concentrations_without_errors ,save_prediction_pkl , save_l_curve_information)            
