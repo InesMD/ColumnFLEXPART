@@ -226,10 +226,10 @@ for idx,week in enumerate(week_list):
     month_str = month_list[idx+13]
     for alphaCO in alpha_listCO:
         for alphaCO2 in alpha_list:
-            for prior_err_CO in [1]:
+            for prior_err_CO in [1]: # 1 is 100% error 
                 for prior_err_CO2 in [1]: # adapt savepaths for different prior errors
-                    for meas_err_CO in [1]:
-                        for meas_err_CO2 in [1]:
+                    for meas_err_CO in [1]: # in ppb # 1  means that the true tccon uncertainties will be used, values different from 1 will be set to measurement errors
+                        for meas_err_CO2 in [1]: # in ppm # see comment for meas_err_CO
                             for correlation in [0.7]:
                                 # adapt savepath 
                                 savepath = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/Images_coupled_Inversion/everything_splitted_first_correlation_setup_weekly_inversion/CO_like_CO2_prior/2_reg_params_coupled/CO2_'+str(prior_err_CO2*100)+'_CO_'+str(prior_err_CO*100)+'/CO2_'+str(meas_err_CO2)+'_CO_'+str(meas_err_CO)+'/Corr_'+str(correlation)+'/All_weeks/'+str(week)+'/'

@@ -127,7 +127,6 @@ class TcconMeasurement(ColumnMeasurement):
 
         data_mean = pd.read_pickle('/work/bb1170/RUN/b382105/Flexpart/TCCON/preparation/one_hour_runs/TCCON_mean_measurements_18_11-19_1_and_19_7-20_3.pkl') #zeitlich stärker einschränken? 
         data_mean = data_mean[(data_mean['datetime'][:] == time)] 
-        #print(data_mean)
         
         if np.isnan(data_mean['xco_ppb'].values[0]): 
             raise Exception('No data available for this time')
@@ -207,7 +206,6 @@ class TcconMeasurement(ColumnMeasurement):
         data = data.rename(xco2_ppm = "xco2", xco2_total_error = "xco2_uncertainty", xco_ppb = 'xco', xco_total_error = 'xco_uncertainty',
                             xch4_ppm = 'xch4', xch4_total_error = 'xch4_uncertainty')
 
-        #print(data.squeeze(drop=True))
         return  data.squeeze(drop=True), path, None
 
     def interpolate_to_levels(self, dataarray: xr.DataArray, pressure_key: str, pressure_values: Iterable) -> xr.DataArray:  

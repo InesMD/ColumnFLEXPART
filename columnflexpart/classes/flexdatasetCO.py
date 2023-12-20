@@ -886,8 +886,6 @@ class FlexDatasetCO:
                         | (self.dataframe.latitude > boundary[3])
                     )
                 ]
-                #print('df_outside')
-                #(self.dataframe)
                 df_outside = (
                     df_outside.loc[df_outside.groupby(self._id_key)["time"].idxmax()]
                     .reset_index()
@@ -930,8 +928,6 @@ class FlexDatasetCO:
             # sorting and filtering
             self.endpoints = df_total.sort_values(self._id_key)
             self.endpoints = self.endpoints[np.sign(self.endpoints.pointspec) == 1]
-            #print('endpoints')
-            #(self.endpoints)
             self.endpoints.attrs["boundary"] = boundary
             self.endpoints.attrs["height unit"] = "m"
             self.endpoints.attrs["pressure unit"] = "Pa"
@@ -976,22 +972,14 @@ class FlexDatasetCO:
             level_attrbs = pd.read_csv(self._ct_dir+'ml_level_attrs.csv')
             pressure = [float(x)*10**2 for x in np.array(level_attrbs['pf [hPa]'][1:])] # in Pa
             cams_data = cams_data.assign_coords(dict({'pressure':('level', pressure)} ))
-            #print(cams_data)
 
             #cams_data_2018 = xr.open_mfdataset(file_list_2018, combine="by_coords")
             #cams_data_2018 = cams_data_2018.reset_index(['level'], drop = True)
-            #print(cams_data_2018.co[0:3,15:17,1,1].values)
-            #print(cams_data_2018)
             #cams_data_2018 = cams_data_2018.assign_coords(dict({'level':('level',[cams_data_2018.level[0:15],cams_data_2018.level[16:] ])}))
-            #print(cams_data_2018.level)
             #level_attrbs = pd.read_csv(self._ct_dir+'ml_level_attrs.csv')
-            #print('here')
             #pressure = [float(x)*10**2 for x in np.array(level_attrbs['pf [hPa]'][1:])] # in Pa
-            #print('here')
             #cams_data_2018 = cams_data_2018.assign_coords(dict({'pressure':('level', pressure)} ))
-            #print('before merge')
             #cams_data = xr.merge([cams_data, cams_data_2018])
-            #print(cams_data)
 
             # psurfec = 1013.35hPa
             # pf = full level pressure (at middle of level)

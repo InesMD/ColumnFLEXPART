@@ -3,6 +3,36 @@ import xarray as xr
 import pandas as pd
 from datetime import datetime
 import matplotlib.pyplot as plt
+datapath_predictions = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/'
+ds = pd.read_pickle(datapath_predictions+'predictions3_CO.pkl')
+print(ds)
+print(ds['enhancement'])
+print(ds['background'])
+print(ds['xco2_measurement'])
+print(ds['measurement_uncertainty'].mean())
+'''
+ds48 = ds[ds['time']<datetime(year=2019, month = 12, day=2)]
+ds49 = ds[(ds['time']>datetime(year=2019, month = 12, day=1, hour = 23))&(ds['time']<datetime(year=2019, month = 12, day=9))]
+ds50 = ds[(ds['time']>datetime(year=2019, month = 12, day=8, hour = 23))&(ds['time']<datetime(year=2019, month = 12, day=16))]
+ds51 = ds[(ds['time']>datetime(year=2019, month = 12, day=15, hour = 23))&(ds['time']<datetime(year=2019, month = 12, day=23))]
+ds52 = ds[(ds['time']>datetime(year=2019, month = 12, day=22, hour = 23))&(ds['time']<datetime(year=2019, month = 12, day=30))]
+ds1 = ds[(ds['time']>datetime(year=2019, month = 12, day=29, hour = 23))&(ds['time']<datetime(year=2020, month = 1, day=6))]
+
+
+background = []
+measurement = []
+prior = []
+conc = []
+for ds in [ds48, ds49, ds50, ds51, ds52, ds1]: 
+    background.append(ds['background_inter'].mean())
+    measurement.append(ds['xco2_measurement'].mean())
+    prior.append(ds['xco2_inter'].mean())
+#for df in [df48, df49, df50, df51, df52, df1]: 
+#    conc.append(df['conc'].mean())
+print(background)
+print(prior)
+'''
+
 #ds = pd.read_pickle('/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/20191220_20191221/predictions_CO_GFED_regr.pkl')
 #ds0 = pd.read_pickle('/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/20191223_20191228/predictions_CO_GFED_regr.pkl')
 #ds1 = pd.read_pickle('/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/20191231_20191231/predictions_CO_GFED_regr.pkl')
@@ -22,13 +52,20 @@ import matplotlib.pyplot as plt
 #print(ds['time'].values.max())
 #print(ds['time'].values.min())
 #print(ds.time.values)
-datapath = '/work/bb1170/RUN/b382105/Dataframes/GFEDs/'
-gdf = pd.read_pickle(datapath+'DF_regridded_CO_AU20192020.pkl')
+#datapath = '/work/bb1170/RUN/b382105/Dataframes/GFEDs/'
+#from columnflexpart.utils.utilsCO import load_cams_data
+#df = load_cams_data('/work/bb1170/RUN/b382105/Data/CAMS/Fluxes/Regridded_1x1/', datetime(year=2019, month=12, day = 1), datetime(year=2020, month = 1, day = 31))
+#print(df['latitude'])
+#print(df)
+#gdf = pd.read_pickle(datapath+'DF_regridded_CO_AU20192020.pkl')
 #gdf = xr.open_dataset("/work/bb1170/RUN/b382105/Dataframes/GFEDs/DF_CO_GFED_cut_to_AU.nc")
-print(gdf)
+#gdf = xr.open_dataset("/work/bb1170/RUN/b382105/Dataframes/GFEDs/GFED2_2019_2020_regr1x1_date_total_emission.nc")
+###print(gdf)
 gdf = gdf[(gdf['Year']==2019)&(gdf['Month']==12)]
+gdf = gdf[(gdf['Longround']>110)&(gdf['Lat']<-10)&(gdf['Lat']>-50)&(gdf['Longround']<155)]
 gdf = gdf.set_index(['Longround', 'Lat']).to_xarray()
 gdf['emission'][:].plot(x = 'Longround', y='Lat')#x='Longround', y = 'Lat')
+#gdf['total_emission'][11,:,:].plot(x='longitude', y='latitude')
 plt.savefig('/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/splitted/Images_CO/GFED_old_regridded')
 
 #ds = xr.open_dataset('/work/bb1170/RUN/b382105/Data/CAMS/Fluxes/CAMS-GLOB-BIO_v3.1_carbon-monoxide_2019.nc', decode_times = False)#, drop_variables="time_components")

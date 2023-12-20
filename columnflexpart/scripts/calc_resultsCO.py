@@ -21,7 +21,7 @@ def find_nc_files(dir, file_list=[]):
     return file_list
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Script to calculate the enahancements and backgrounds of multiple flexpart runs")
+    parser = argparse.ArgumentParser(description="Script to calculate the enhancements and backgrounds of multiple flexpart runs")
     
     parser.add_argument("dir", type=str, help="Directory beneath all flexpart runs are calculated")
     parser.add_argument("flux_file", type=str, help="File start for multiplication with footprints (until timestap)")

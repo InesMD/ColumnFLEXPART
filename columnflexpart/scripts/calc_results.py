@@ -63,17 +63,16 @@ if __name__ == '__main__':
             enhancement = fd.enhancement(ct_file=args.flux_file, boundary=args.boundary, allow_read=args.read_only, interpolate=False)
             tr = fd.trajectories
             
-            try: 
-                tr.load_endpoints()
-                assert tr.endpoints.attrs["boundary"] == args.boundary
-            except Exception as e:
-                print(e)
-                tr.endpoints = None
-                tr.ct_endpoints(boundary=args.boundary)
-                tr.co2_from_endpoints(boundary=args.boundary)
-                tr.save_endpoints()
+            #try: 
+            #    tr.load_endpoints()
+            #    assert tr.endpoints.attrs["boundary"] == args.boundary
+            #except Exception as e:
+            #    print(e)
+            tr.endpoints = None
+            tr.ct_endpoints(boundary=args.boundary)
+            tr.co2_from_endpoints(boundary=args.boundary)
+            tr.save_endpoints()
             
-
             background_inter = fd.background(allow_read=args.read_only, boundary=args.boundary, interpolate=True)
             background = fd.background(allow_read=args.read_only, boundary=args.boundary, interpolate=False)
             xco2_inter = fd.total(ct_file=args.flux_file, allow_read=args.read_only, boundary=args.boundary, chunks=dict(time=20, pointspec=4), interpolate=True)

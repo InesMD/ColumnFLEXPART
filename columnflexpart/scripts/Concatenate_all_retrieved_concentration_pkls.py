@@ -27,7 +27,7 @@ def plot_total_conc_with_errors(df, savepath, alpha, alphaCO):
     #ax[0].set_xticks(Xaxis, ['']*len(df['time'][:]))
     #ax1.tick_params(axis = 'y')
     max_value = max(abs(df['CO2_fire'].max()), abs(df['CO2_fire'].min()))
-    ax[0].set_ylim((406, max_value+2))
+    ax[0].set_ylim((404, max_value+2.5))
 
  
     #total CO2
@@ -47,7 +47,7 @@ def plot_total_conc_with_errors(df, savepath, alpha, alphaCO):
     ax2 = ax[1]#.twinx()
     ax2.set_ylabel(r'CO [ppb]')
     max_value = max(abs(df['CO_fire'].max()), abs(df['CO_fire'].min()))
-    ax2.set_ylim((0, max_value+100))
+    ax2.set_ylim((-90, max_value+130))
     # total CO
     total_CO = df['CO_fire']+df['CO_bio']-df['CO_background']
     ax2.plot(Xaxis-0.3, df['CO_meas'],color = 'dimgrey',label = r'measurements')
@@ -301,8 +301,8 @@ basic_path = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/I
 ds_tot = pd.DataFrame()
 ak_CO2 = []
 ak_CO = []
-alphaCO2 = 1e-2
-alphaCO = 2.12
+alphaCO2 = 1e-3
+alphaCO = 1e-2
 for week in [35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,1, 2,3, 4, 5, 6,7,8,9]:# namen checken!!!!!!!!!!!!!!
     path = basic_path +'All_weeks/'+str(week)+'/'
     ds = pd.read_pickle(path+"{:.2e}".format(alphaCO2)+"_CO2_"+"{:.2e}".format(alphaCO)+'_concentrations_and_errors_only_one_week.pkl')
@@ -334,6 +334,7 @@ print(ds_tot)
 #plotting(ds_tot,basic_path+'All_weeks/Images/')
 plot_total_conc_with_errors(ds_tot, basic_path+'All_weeks/Images/',alphaCO2, alphaCO)
 #plot_total_conc_with_errors_linear_x_axis(ds_tot, basic_path+'All_weeks/Images/',alphaCO2, alphaCO)
+'''
 path = '/work/bb1170/RUN/b382105/Flexpart/TCCON/output/one_hour_runs/CO2/Images_coupled_Inversion/everything_splitted_first_correlation_setup_weekly_inversion/CO_like_CO2_prior/2_reg_params_coupled/CO2_100_CO_100/CO2_1_CO_1/Corr_0.7/'
 tot_spatial_result =  xr.open_dataset(path+str(48)+'/spatial_results_CO2_fire_week_'+str(48)+'.nc')
 for week in [49,50,51,52,1]:
@@ -351,3 +352,4 @@ plot_spatial_result(spatial_result.__xarray_dataarray_variable__, path+'total_em
     #plot_spatial_result(spatial_result, path+'total_emissions/', savename, cmap, vmax =None, vmin =None, cbar_kwargs = {'shrink':  0.835}, norm = None)
     #spatial_result = xr.open_dataset(path+str(week)+'/spatial_results_CO2_ant_bio_week_'+str(week)+'.nc')
     #plot_spatial_result(spatial_result, path+'total_emissions/', savename, cmap, vmax =None, vmin =None, cbar_kwargs = {'shrink':  0.835}, norm = None)
+'''

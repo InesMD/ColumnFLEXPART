@@ -496,7 +496,7 @@ def calc_enhancement(
 # Optimal Lambda
 #######################
 
-def calc_point(reg: bayesinverse.Regression, alpha:float) -> tuple[float, float]:
+def calc_point(reg: bayesinverse.Regression, alpha:float, err=None) -> tuple[float, float]:
     """Calculates points on L-curve given a regulatization parameter and the model
 
     Args:
@@ -506,7 +506,7 @@ def calc_point(reg: bayesinverse.Regression, alpha:float) -> tuple[float, float]
     Returns:
         tuple[float, float]: Logarithm of losses of forward model and regulatization
     """    
-    result = reg.compute_l_curve([alpha])
+    result = reg.compute_l_curve([alpha], xerr = err)
     return np.log10(result["loss_forward_model"][0]), np.log10(result["loss_regularization"][0])
 
 def euclidean_dist(P1: tuple[float, float], P2: tuple[float, float]) -> float:
@@ -566,7 +566,7 @@ def get_l3(l1: float, l2: float, l4: float) -> float:
     """    
     return 10**(np.log10(l1) + (np.log10(l4) - np.log10(l2)))
 
-def optimal_lambda(reg: bayesinverse.Regression, interval: tuple[float, float], threshold: float):    
+def optimal_lambda(reg: bayesinverse.Regression, interval: tuple[float, float], threshold: float, xerr=None):    
     """Find optiomal value for weigthing factor in regression. Based on https://doi.org/10.1088/2633-1357/abad0d
 
     Args:
@@ -583,7 +583,7 @@ def optimal_lambda(reg: bayesinverse.Regression, interval: tuple[float, float], 
 
     p_list = []
     for l in l_list:
-        p_list.append(calc_point(reg, l))
+        p_list.append(calc_point(reg, l, xerr))
     
     while (l_list[3] - l_list[0]) / l_list[3] >= threshold:
         c2 = calc_curvature(*p_list[:3])

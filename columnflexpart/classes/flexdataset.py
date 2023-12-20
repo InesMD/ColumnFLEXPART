@@ -414,7 +414,6 @@ class FlexDataset:
             float: XCO2 of modeled measurement.
         """    
         total_layer = self.total_layer(ct_file, allow_read, boundary, force_calculation, chunks)
-        #print('total layer done')
         if interpolate:
             mode = self._get_result_mode(self._total_inter, "total_inter", allow_read, force_calculation, boundary)
             if mode == "from_instance":
@@ -426,7 +425,6 @@ class FlexDataset:
                 pressures = self.measurement.surface_pressure() * self.pressure_factor(self.release["heights"], Tb=self.measurement.surface_temperature())
                 total_layer = self.measurement.interpolate_to_levels(total_layer, "pointspec", pressures)
                 total_layer = self.measurement.add_variables(total_layer)
-                #print('Before pressure_weighted_sum')
                 self._total_inter = self.measurement.pressure_weighted_sum(total_layer, "total_layer", with_averaging_kernel = True).values
                 self._total_inter = float(self._total_inter)
                 self._save_result("total_inter", self._total_inter, boundary)
@@ -492,7 +490,6 @@ class FlexDataset:
                 pressure_weights = self.pressure_weights_from_height()
                 self._enhancement = (molefractions * pressure_weights).sum()
                 self._save_result("enhancement", self._enhancement, boundary)
-
             return self._enhancement
 
     def background(
@@ -905,7 +902,6 @@ class FlexDataset:
                 df_total = self.dataframe.loc[
                     self.dataframe.groupby(self._id_key)["time"].idxmin()
                 ]
-
             _ = self.load_ct_data(ct_dir, ct_dummy)
             # finding cells of endpoints for time longitude and latitude
             variables = ["time", "longitude", "latitude"]
@@ -926,8 +922,33 @@ class FlexDataset:
                 latitude=xr.DataArray(df_total.ct_latitude.values),
                 longitude=xr.DataArray(df_total.ct_longitude.values),
             )
+            '''
+
+            # as ct pressure data is given for boundaries of levels, 
+            # pressure at midpoints of levels are calculated here
+
+            # from https://gml.noaa.gov/ccgg/carbontracker/CT2022_doc.pdf section 6.1
+            mid_level_heights_ct = xr.DataArray(np.array([33,109, 255, 477,814,1273, 1835, 2556, 3315, 4205,5026,5603 ,6186 , 6771, 7355, 8086,  8816,
+                                             9400, 10131,11011,  11749, 12492,13393, 14304, 15226, 16322, 17446, 18459, 20380, 24376,
+                                              29834,35623,  42602, 123210]),dims = ['level'], coords={'level':list(np.arange(1,35,1))} ) # m
+
+            # estimate T at height zero
+            ct_temp = self.ct_data.temperature.isel(time=xr.DataArray(df_total.ct_time.values),
+                latitude=xr.DataArray(df_total.ct_latitude.values),
+                longitude=xr.DataArray(df_total.ct_longitude.values))
+            dT_dh = (ct_temp.isel(level=1)-ct_temp.isel(level=0))/(109-33)
+            T0 = ct_temp.isel(level=0)-dT_dh * 33#, ct_temp.isel(level=0))
+
+            R = 8.3144598
+            g = 9.80665
+            M = 0.0289644
+
+            #ct_vals = ct_vals[:,1:].rename({"boundary":"level"})#.drop_dims('level').rename_dims(dict({'boundary':'level'}))
+            #ct_vals =ct_vals.assign_coords({'level':('level',list(np.arange(1,35,1)))})
+            mid_level_pressure = ct_vals[:,0] *np.exp(-mid_level_heights_ct*g*M/R/T0)
+            '''
             df_vals = df_total.pressure_height.values
-            diff = np.abs(df_vals[:, None] - ct_vals)
+            diff = np.abs(df_vals[:, None] -ct_vals)
             inds = np.argsort(diff, axis=-1)[:, :2]
             inds = abs(inds).min(axis=1)
             df_total.insert(1, "ct_height", value=inds)
@@ -965,9 +986,8 @@ class FlexDataset:
                 file_list.append(
                     os.path.join(self._ct_dir, self._ct_dummy + date + ".nc")
                 )
-            ct_data = xr.open_mfdataset(file_list, combine="by_coords")
-
-            self.ct_data = ct_data[["co2", "pressure"]].compute()
+            ct_data = xr.open_mfdataset(file_list, combine="by_coords", drop_variables = ["calendar_components"] )
+            self.ct_data = ct_data[["co2", "pressure", "temperature"]].compute()
             return self.ct_data
 
         def save_endpoints(self, name: str = "endpoints.pkl", dir: str = None):

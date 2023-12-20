@@ -1,5 +1,5 @@
 
-from columnflexpart.classes.coupled_inversion import CoupledInversion
+from columnflexpart.classes.coupled_inversion_no_corr_no_split_fluxes import CoupledInversion
 import datetime
 import numpy as np
 import xarray as xr

@@ -172,7 +172,7 @@ class Inversion():
                 footprint = footprint.where((footprint.time >= self.start) * (footprint.time < self.stop), drop=True)
             else:
                 min_time = footprint.time.min().values.astype("datetime64[D]") if footprint.time.min() < min_time else min_time
-
+            
             footprint = select_boundary(footprint, self.boundary)
             footprint = self.coarsen_data(footprint, "sum", None)
             footprints.append(footprint)
@@ -281,7 +281,6 @@ class Inversion():
             x_prior = self.flux_flat.values
 
         if with_prior:
-            #print(len(concentration_errs.values))
             self.reg = bayesinverse.Regression(
                 y = self.concentrations.values*1e-6, 
                 K = self.footprints_flat.values, 
@@ -891,13 +890,13 @@ class InversionBioclass(Inversion):
         mapped_xarr = xr.DataArray(
             data = np.zeros(
                 (
-                    len(xarr[self.time_coord]),
+                   # len(xarr[self.time_coord]),
                     len(self.bioclass_mask.longitude),
                     len(self.bioclass_mask.latitude)
                 )
             ),
             coords = {
-                self.time_coord: xarr[self.time_coord], 
+                #self.time_coord: xarr[self.time_coord], 
                 "longitude": self.bioclass_mask.longitude, 
                 "latitude": self.bioclass_mask.latitude
             }
@@ -928,7 +927,6 @@ class InversionBioclass(Inversion):
         )
         for bioclass in xarr.bioclass:
             mask = self.bioclass_mask == bioclass
-            print(xarr.where(xarr.bioclass == bioclass, drop=True))
             mapped_xarr = mapped_xarr + (self.bioclass_mask == bioclass) * xarr.where(xarr.bioclass == bioclass, drop=True)
             mapped_xarr = mapped_xarr.squeeze(drop=True)
         return mapped_xarr
@@ -952,7 +950,7 @@ def get_total(inv):
     world = gpd.read_file(gpd.datasets.get_path('naturalearth_lowres'))[["name", "geometry"]].to_crs({'init': 'epsg:3857'})
     area = world[world.name=="Australia"].area
     flux_sum = area*flux_sum
-    print(flux_sum)
+
     
 
 if __name__ == "__main__":
